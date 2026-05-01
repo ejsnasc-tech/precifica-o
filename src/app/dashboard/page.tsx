@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import EmpresaCard from "@/components/EmpresaCard";
 import EmpresaModal from "@/components/EmpresaModal";
@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<Empresa | null>(null);
 
-  const loadEmpresas = async () => {
+  const loadEmpresas = useCallback(async () => {
     try {
       const res = await fetch("/api/empresas");
       if (res.status === 401) { router.push("/login"); return; }
@@ -31,9 +31,9 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  useEffect(() => { void loadEmpresas(); }, []);
+  useEffect(() => { void loadEmpresas(); }, [loadEmpresas]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
