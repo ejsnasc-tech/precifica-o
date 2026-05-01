@@ -24,7 +24,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/empresas");
       if (res.status === 401) { router.push("/login"); return; }
-      const data = await res.json();
+      const data = await res.json() as Empresa[];
       setEmpresas(data);
     } catch {
       // ignore

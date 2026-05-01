@@ -21,7 +21,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha }),
       });
-      const data = await res.json();
+      const data = await res.json() as { error?: string };
       if (!res.ok) { setErro(data.error ?? "Erro ao entrar."); return; }
       router.push("/dashboard");
     } catch {

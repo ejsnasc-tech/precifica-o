@@ -22,7 +22,7 @@ export default function CadastroPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nome, email, senha }),
       });
-      const data = await res.json();
+      const data = await res.json() as { error?: string };
       if (!res.ok) { setErro(data.error ?? "Erro ao cadastrar."); return; }
       router.push("/dashboard");
     } catch {
