@@ -1,0 +1,52 @@
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  senha_hash TEXT NOT NULL,
+  plano TEXT NOT NULL DEFAULT 'free',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS empresas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  descricao TEXT NOT NULL DEFAULT '',
+  cor TEXT NOT NULL DEFAULT 'from-blue-500 to-indigo-600',
+  emoji TEXT NOT NULL DEFAULT '🏪',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS configuracoes_empresa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL UNIQUE REFERENCES empresas(id) ON DELETE CASCADE,
+  regime TEXT NOT NULL DEFAULT 'simples_nacional',
+  anexo TEXT NOT NULL DEFAULT 'I',
+  aliquota_custom REAL NOT NULL DEFAULT 0,
+  taxa_debito REAL NOT NULL DEFAULT 1.5,
+  taxa_credito REAL NOT NULL DEFAULT 2.5,
+  taxa_pix REAL NOT NULL DEFAULT 0,
+  taxa_dinheiro REAL NOT NULL DEFAULT 0,
+  funcionarios_custo REAL NOT NULL DEFAULT 0,
+  funcionarios_qtd INTEGER NOT NULL DEFAULT 1,
+  gastos_variaveis REAL NOT NULL DEFAULT 0,
+  gastos_variaveis_tipo TEXT NOT NULL DEFAULT 'percent',
+  perdas_pct REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS produtos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  margem REAL NOT NULL DEFAULT 30,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ingredientes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  produto_id INTEGER NOT NULL REFERENCES produtos(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  quantidade REAL NOT NULL DEFAULT 0,
+  unidade TEXT NOT NULL DEFAULT 'kg',
+  custo_por_unidade REAL NOT NULL DEFAULT 0
+);
