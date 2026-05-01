@@ -33,7 +33,6 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadEmpresas(); }, [loadEmpresas]);
 
   const handleLogout = async () => {

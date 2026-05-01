@@ -24,6 +24,7 @@
     "zod": "^4.4.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260501.1",
     "@opennextjs/cloudflare": "^1.19.5",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
