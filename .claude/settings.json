@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm'; Add-Content -Path 'C:\\Users\\JOGOS\\.claude\\projects\\c--Users-JOGOS-Desktop-projetos-precificacao-pro\\memory\\session_log.md' -Value \"- $timestamp — Sessão encerrada\" -Encoding utf8",
+            "statusMessage": "Salvando log da sessão..."
+          }
+        ]
+      }
+    ]
+  }
+}
