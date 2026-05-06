@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS catalogo_ingredientes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  unidade TEXT NOT NULL DEFAULT 'kg',
+  custo_por_unidade REAL NOT NULL DEFAULT 0
+);
