@@ -24,7 +24,7 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Deploy
-        run: npx wrangler pages deploy --project-name=precificacao-pro --commit-dirty=true
+        run: npx wrangler pages deploy .open-next/assets --project-name=precificacao-pro --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: 4486f5377d83216c279533b9c55905fc
