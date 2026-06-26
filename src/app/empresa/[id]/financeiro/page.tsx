@@ -50,22 +50,14 @@ function compras(l: Lancamento) { return l.itens.reduce((a, i) => a + i.valor, 0
 function lucro(l: Lancamento) { return l.vendas - compras(l); }
 function margem(l: Lancamento) { return l.vendas > 0 ? (lucro(l) / l.vendas) * 100 : 0; }
 
-function semanaISO(data: string) {
-  const d = new Date(data + "T12:00:00");
-  const diaSemana = d.getDay();
-  const diff = d.getDate() - diaSemana;
-  return new Date(d.setDate(diff)).toISOString().slice(0, 10);
-}
-
 function hoje() { return new Date().toISOString().slice(0, 10); }
 
 // ─── Gráfico de Barras (vendas vs compras) ───────────────────────────────────
 
 function BarDuploChart({
-  entries, cor,
+  entries,
 }: {
   entries: { label: string; vendas: number; compras: number }[];
-  cor: string;
 }) {
   if (entries.length === 0) return <p className="text-slate-400 text-sm text-center py-8">Sem dados</p>;
   const max = Math.max(...entries.flatMap((e) => [e.vendas, e.compras]), 1);
@@ -107,24 +99,29 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   if (total === 0) return <p className="text-slate-400 text-sm text-center">Sem despesas</p>;
 
   const R = 48, r = 28, cx = 64, cy = 64;
-  let angle = -Math.PI / 2;
 
-  const arcs = data
-    .filter((d) => d.value > 0)
-    .map((d) => {
-      const sweep = (d.value / total) * Math.PI * 2;
-      const x1o = cx + R * Math.cos(angle), y1o = cy + R * Math.sin(angle);
-      const x1i = cx + r * Math.cos(angle), y1i = cy + r * Math.sin(angle);
-      angle += sweep;
-      const x2o = cx + R * Math.cos(angle), y2o = cy + R * Math.sin(angle);
-      const x2i = cx + r * Math.cos(angle), y2i = cy + r * Math.sin(angle);
-      const large = sweep > Math.PI ? 1 : 0;
-      return {
-        ...d,
-        path: `M ${x1o} ${y1o} A ${R} ${R} 0 ${large} 1 ${x2o} ${y2o} L ${x2i} ${y2i} A ${r} ${r} 0 ${large} 0 ${x1i} ${y1i} Z`,
-        pct: ((d.value / total) * 100).toFixed(1),
-      };
-    });
+  const filtered = data.filter((d) => d.value > 0);
+  const startAngles = filtered.reduce<number[]>((acc, _d) => {
+    const prev = acc.length > 0 ? acc[acc.length - 1] : -Math.PI / 2;
+    const prevSweep = acc.length > 0 ? (filtered[acc.length - 1].value / total) * Math.PI * 2 : 0;
+    return [...acc, prev + (acc.length === 0 ? 0 : prevSweep)];
+  }, []);
+
+  const arcs = filtered.map((d, i) => {
+    const a0 = i === 0 ? -Math.PI / 2 : startAngles[i];
+    const sweep = (d.value / total) * Math.PI * 2;
+    const a1 = a0 + sweep;
+    const x1o = cx + R * Math.cos(a0), y1o = cy + R * Math.sin(a0);
+    const x1i = cx + r * Math.cos(a0), y1i = cy + r * Math.sin(a0);
+    const x2o = cx + R * Math.cos(a1), y2o = cy + R * Math.sin(a1);
+    const x2i = cx + r * Math.cos(a1), y2i = cy + r * Math.sin(a1);
+    const large = sweep > Math.PI ? 1 : 0;
+    return {
+      ...d,
+      path: `M ${x1o} ${y1o} A ${R} ${R} 0 ${large} 1 ${x2o} ${y2o} L ${x2i} ${y2i} A ${r} ${r} 0 ${large} 0 ${x1i} ${y1i} Z`,
+      pct: ((d.value / total) * 100).toFixed(1),
+    };
+  });
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
@@ -444,7 +441,7 @@ export default function FinanceiroPage() {
               {/* Barras diárias */}
               <div className="bg-white rounded-2xl shadow p-5">
                 <h3 className="font-bold text-slate-700 mb-3 text-sm">Vendas vs Compras (últimos lançamentos)</h3>
-                <BarDuploChart entries={ultimos7} cor={empresa.cor} />
+                <BarDuploChart entries={ultimos7} />
               </div>
 
               {/* Donut categorias */}
@@ -756,7 +753,7 @@ export default function FinanceiroPage() {
             {/* Gráfico barras */}
             <div className="bg-white rounded-2xl shadow p-5">
               <h3 className="font-bold text-slate-700 mb-3 text-sm">Vendas vs Compras — {MESES[filtroMes - 1]}/{filtroAno}</h3>
-              <BarDuploChart entries={doMes.slice().reverse().map((l) => ({ label: l.data.slice(8), vendas: l.vendas, compras: compras(l) }))} cor={empresa.cor} />
+              <BarDuploChart entries={doMes.slice().reverse().map((l) => ({ label: l.data.slice(8), vendas: l.vendas, compras: compras(l) }))} />
             </div>
 
             {/* Tabela completa do mês */}
@@ -852,7 +849,6 @@ export default function FinanceiroPage() {
               <h3 className="font-bold text-slate-700 mb-3 text-sm">Vendas vs Compras — {filtroAno}</h3>
               <BarDuploChart
                 entries={dadosAnuais.filter((m) => m.entradas > 0).map((m) => ({ label: m.mes, vendas: m.vendas, compras: m.compras }))}
-                cor={empresa.cor}
               />
             </div>
 
