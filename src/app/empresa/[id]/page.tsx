@@ -354,6 +354,12 @@ export default function EmpresaPage() {
               {empresa.descricao && <p className="text-white/80 text-sm">{empresa.descricao}</p>}
             </div>
           </div>
+          <button
+            onClick={() => router.push(`/empresa/${id}/financeiro`)}
+            className="bg-white/20 hover:bg-white/30 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+          >
+            💰 Módulo Financeiro
+          </button>
         </div>
       </div>
 
