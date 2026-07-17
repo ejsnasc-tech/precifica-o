@@ -81,6 +81,19 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8">
+        {/* Card Finanças Pessoais */}
+        <div
+          onClick={() => router.push("/financeiro-pessoal")}
+          className="mb-6 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-5 shadow-md cursor-pointer hover:opacity-90 transition-opacity flex items-center justify-between"
+        >
+          <div className="text-white">
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Módulo</p>
+            <p className="text-xl font-extrabold mt-0.5">👤 Finanças Pessoais</p>
+            <p className="text-sm opacity-70 mt-0.5">Receitas, despesas, cartões e metas pessoais</p>
+          </div>
+          <span className="text-white text-3xl opacity-70">→</span>
+        </div>
+
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-zinc-800">Minhas Empresas</h1>
           <button

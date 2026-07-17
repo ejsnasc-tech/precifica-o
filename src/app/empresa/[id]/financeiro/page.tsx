@@ -7,7 +7,7 @@ import { useRouter, useParams } from "next/navigation";
 
 interface Empresa { id: number; nome: string; descricao: string; cor: string; emoji: string; }
 
-interface LancItem { categoria: string; descricao: string; valor: number; }
+interface LancItem { categoria?: string; descricao: string; quantidade?: number; valor_unitario?: number; valor: number; }
 
 interface Lancamento {
   id: number;
@@ -15,11 +15,12 @@ interface Lancamento {
   data: string;
   vendas: number;
   itens: LancItem[];
+  itens_vendas: LancItem[];
   obs: string;
   criado_em: string;
 }
 
-interface Socio { nome: string; percentual: number; }
+interface Socio { nome: string; percentual: number; retirada?: number; }
 
 type Tab = "dashboard" | "lancamentos" | "semanal" | "mensal" | "anual" | "socios";
 
@@ -36,6 +37,19 @@ const CAT_LABEL: Record<string, string> = {
 const CAT_COLOR: Record<string, string> = {
   insumos: "#10b981", embalagens: "#3b82f6", limpeza: "#8b5cf6",
   pessoal: "#f97316", equipamentos: "#06b6d4", outros: "#94a3b8",
+};
+
+const CATEGORIAS_VENDA = ["sucos", "vitaminas", "lanches", "delivery", "outros"] as const;
+type CategoriaVenda = typeof CATEGORIAS_VENDA[number];
+
+const CAT_VENDA_LABEL: Record<string, string> = {
+  sucos: "Sucos", vitaminas: "Vitaminas", lanches: "Lanches",
+  delivery: "Delivery", outros: "Outros",
+};
+
+const CAT_VENDA_COLOR: Record<string, string> = {
+  sucos: "#10b981", vitaminas: "#34d399", lanches: "#059669",
+  delivery: "#6ee7b7", outros: "#94a3b8",
 };
 
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -198,10 +212,13 @@ export default function FinanceiroPage() {
   const [filtroMes, setFiltroMes] = useState(now.getMonth() + 1);
 
   // Form lançamento
-  const emptyForm = { data: hoje(), vendas: "", obs: "", itens: [] as LancItem[] };
+  const emptyForm = { data: hoje(), vendas: "", obs: "", itens: [] as LancItem[], itens_vendas: [] as LancItem[] };
   const [form, setForm] = useState(emptyForm);
-  const [novoItem, setNovoItem] = useState<{ categoria: Categoria; descricao: string; valor: string }>({
-    categoria: "insumos", descricao: "", valor: "",
+  const [novoItem, setNovoItem] = useState<{ descricao: string; quantidade: string; valor_unitario: string }>({
+    descricao: "", quantidade: "1", valor_unitario: "",
+  });
+  const [novoItemVenda, setNovoItemVenda] = useState<{ descricao: string; quantidade: string; valor_unitario: string }>({
+    descricao: "", quantidade: "1", valor_unitario: "",
   });
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -302,24 +319,41 @@ export default function FinanceiroPage() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   function addItem() {
-    const v = parseFloat(novoItem.valor);
-    if (!novoItem.descricao.trim() || isNaN(v) || v <= 0) return;
-    setForm((f) => ({ ...f, itens: [...f.itens, { categoria: novoItem.categoria, descricao: novoItem.descricao.trim(), valor: v }] }));
-    setNovoItem((n) => ({ ...n, descricao: "", valor: "" }));
+    const qtd = parseFloat(novoItem.quantidade) || 1;
+    const unit = parseFloat(novoItem.valor_unitario);
+    if (!novoItem.descricao.trim() || isNaN(unit) || unit <= 0) return;
+    const valor = parseFloat((qtd * unit).toFixed(2));
+    setForm((f) => ({ ...f, itens: [...f.itens, { descricao: novoItem.descricao.trim(), quantidade: qtd, valor_unitario: unit, valor }] }));
+    setNovoItem({ descricao: "", quantidade: "1", valor_unitario: "" });
   }
 
   function removeItem(idx: number) {
     setForm((f) => ({ ...f, itens: f.itens.filter((_, i) => i !== idx) }));
   }
 
+  function addItemVenda() {
+    const qtd = parseFloat(novoItemVenda.quantidade) || 1;
+    const unit = parseFloat(novoItemVenda.valor_unitario);
+    if (!novoItemVenda.descricao.trim() || isNaN(unit) || unit <= 0) return;
+    const valor = parseFloat((qtd * unit).toFixed(2));
+    setForm((f) => ({ ...f, itens_vendas: [...f.itens_vendas, { descricao: novoItemVenda.descricao.trim(), quantidade: qtd, valor_unitario: unit, valor }] }));
+    setNovoItemVenda({ descricao: "", quantidade: "1", valor_unitario: "" });
+  }
+
+  function removeItemVenda(idx: number) {
+    setForm((f) => ({ ...f, itens_vendas: f.itens_vendas.filter((_, i) => i !== idx) }));
+  }
+
   const formCompras = form.itens.reduce((a, i) => a + i.valor, 0);
-  const formLucro = (parseFloat(form.vendas) || 0) - formCompras;
+  const formVendasAuto = form.itens_vendas.length > 0 ? form.itens_vendas.reduce((a, i) => a + i.valor, 0) : null;
+  const formVendasTotal = formVendasAuto ?? (parseFloat(form.vendas) || 0);
+  const formLucro = formVendasTotal - formCompras;
 
   async function salvar() {
-    const v = parseFloat(form.vendas);
+    const v = formVendasTotal;
     if (isNaN(v) || v < 0 || !form.data) return;
     setSalvando(true);
-    const body = { empresa_id: Number(id), data: form.data, vendas: v, itens: form.itens, obs: form.obs };
+    const body = { empresa_id: Number(id), data: form.data, vendas: v, itens: form.itens, itens_vendas: form.itens_vendas, obs: form.obs };
 
     if (editandoId !== null) {
       await fetch(`/api/lancamentos/${editandoId}`, {
@@ -344,7 +378,7 @@ export default function FinanceiroPage() {
   }
 
   function iniciarEdicao(l: Lancamento) {
-    setForm({ data: l.data, vendas: String(l.vendas), obs: l.obs, itens: [...l.itens] });
+    setForm({ data: l.data, vendas: String(l.vendas), obs: l.obs, itens: [...l.itens], itens_vendas: [...(l.itens_vendas ?? [])] });
     setEditandoId(l.id);
     setAba("lancamentos");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -500,11 +534,16 @@ export default function FinanceiroPage() {
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600 block mb-1">Vendas (R$)</label>
-                  <input type="number" step="0.01" min="0" value={form.vendas}
-                    onChange={(e) => setForm({ ...form, vendas: e.target.value })}
+                  <label className="text-sm text-slate-600 block mb-1">
+                    Vendas (R$)
+                    {formVendasAuto !== null && <span className="text-green-600 text-xs ml-2">✓ calculado pelos itens</span>}
+                  </label>
+                  <input type="number" step="0.01" min="0"
+                    value={formVendasAuto !== null ? formVendasAuto.toFixed(2) : form.vendas}
+                    onChange={(e) => formVendasAuto === null && setForm({ ...form, vendas: e.target.value })}
+                    readOnly={formVendasAuto !== null}
                     placeholder="0,00"
-                    className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    className={`w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 ${formVendasAuto !== null ? "border-green-300 bg-green-50 text-green-700 cursor-default" : "border-slate-300 focus:ring-green-400"}`} />
                 </div>
                 <div>
                   <label className="text-sm text-slate-600 block mb-1">Observação</label>
@@ -514,21 +553,81 @@ export default function FinanceiroPage() {
                 </div>
               </div>
 
+              {/* Itens de venda */}
+              <div className="bg-green-50 rounded-xl p-4 mb-4">
+                <h3 className="text-sm font-bold text-slate-700 mb-1">💰 Detalhamento de Vendas <span className="font-normal text-slate-400">(opcional)</span></h3>
+                <p className="text-xs text-slate-500 mb-3">
+                  {formVendasAuto !== null
+                    ? `Total calculado automaticamente a partir dos itens abaixo`
+                    : `Adicione itens para detalhar — ou use apenas o campo "Vendas (R$)" acima`}
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                  <input value={novoItemVenda.descricao} onChange={(e) => setNovoItemVenda({ ...novoItemVenda, descricao: e.target.value })}
+                    placeholder="Produto / descrição" onKeyDown={(e) => e.key === "Enter" && addItemVenda()}
+                    className="col-span-2 md:col-span-1 border border-green-300 rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" min="0" value={novoItemVenda.quantidade}
+                    onChange={(e) => setNovoItemVenda({ ...novoItemVenda, quantidade: e.target.value })}
+                    placeholder="Qtd"
+                    className="border border-green-300 rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" min="0" value={novoItemVenda.valor_unitario}
+                    onChange={(e) => setNovoItemVenda({ ...novoItemVenda, valor_unitario: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && addItemVenda()}
+                    placeholder="Valor unit. (R$)"
+                    className="border border-green-300 rounded-lg px-3 py-2 text-sm" />
+                  <button onClick={addItemVenda}
+                    className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">
+                    + Item
+                  </button>
+                </div>
+
+                {form.itens_vendas.length > 0 ? (
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-slate-400 text-xs border-b">
+                      <th className="text-left py-1">Produto</th>
+                      <th className="text-right py-1">Qtd</th>
+                      <th className="text-right py-1">Unit.</th>
+                      <th className="text-right py-1">Total</th>
+                      <th></th>
+                    </tr></thead>
+                    <tbody>
+                      {form.itens_vendas.map((item, idx) => (
+                        <tr key={idx} className="border-b border-green-100">
+                          <td className="py-1.5 text-slate-700 font-medium">{item.descricao}</td>
+                          <td className="py-1.5 text-right text-slate-500">{item.quantidade ?? 1}</td>
+                          <td className="py-1.5 text-right text-slate-500">{fmt(item.valor_unitario ?? item.valor)}</td>
+                          <td className="py-1.5 text-right font-semibold text-green-600">{fmt(item.valor)}</td>
+                          <td className="py-1.5 text-right">
+                            <button onClick={() => removeItemVenda(idx)} className="text-slate-300 hover:text-red-400">✕</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr>
+                      <td colSpan={3} className="py-2 font-bold text-slate-700 text-xs">Total de vendas</td>
+                      <td className="py-2 text-right font-bold text-green-700">{fmt(formVendasAuto!)}</td>
+                      <td></td>
+                    </tr></tfoot>
+                  </table>
+                ) : (
+                  <p className="text-slate-400 text-sm text-center py-2">Nenhum item adicionado — total manual será usado</p>
+                )}
+              </div>
+
               {/* Itens de compra */}
               <div className="bg-slate-50 rounded-xl p-4 mb-4">
                 <h3 className="text-sm font-bold text-slate-700 mb-3">🛒 Compras / Despesas</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                  <select value={novoItem.categoria} onChange={(e) => setNovoItem({ ...novoItem, categoria: e.target.value as Categoria })}
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
-                    {CATEGORIAS.map((c) => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
-                  </select>
                   <input value={novoItem.descricao} onChange={(e) => setNovoItem({ ...novoItem, descricao: e.target.value })}
-                    placeholder="Descrição" onKeyDown={(e) => e.key === "Enter" && addItem()}
-                    className="col-span-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
-                  <input type="number" step="0.01" min="0" value={novoItem.valor}
-                    onChange={(e) => setNovoItem({ ...novoItem, valor: e.target.value })}
+                    placeholder="Produto / descrição" onKeyDown={(e) => e.key === "Enter" && addItem()}
+                    className="col-span-2 md:col-span-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" min="0" value={novoItem.quantidade}
+                    onChange={(e) => setNovoItem({ ...novoItem, quantidade: e.target.value })}
+                    placeholder="Qtd"
+                    className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+                  <input type="number" step="0.01" min="0" value={novoItem.valor_unitario}
+                    onChange={(e) => setNovoItem({ ...novoItem, valor_unitario: e.target.value })}
                     onKeyDown={(e) => e.key === "Enter" && addItem()}
-                    placeholder="R$"
+                    placeholder="Valor unit. (R$)"
                     className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
                   <button onClick={addItem}
                     className="bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg px-4 py-2 text-sm">
@@ -539,20 +638,18 @@ export default function FinanceiroPage() {
                 {form.itens.length > 0 ? (
                   <table className="w-full text-sm">
                     <thead><tr className="text-slate-400 text-xs border-b">
-                      <th className="text-left py-1">Categoria</th>
-                      <th className="text-left py-1">Descrição</th>
-                      <th className="text-right py-1">Valor</th>
+                      <th className="text-left py-1">Produto / Descrição</th>
+                      <th className="text-right py-1">Qtd</th>
+                      <th className="text-right py-1">Unit.</th>
+                      <th className="text-right py-1">Total</th>
                       <th></th>
                     </tr></thead>
                     <tbody>
                       {form.itens.map((item, idx) => (
                         <tr key={idx} className="border-b border-slate-100">
-                          <td className="py-1.5">
-                            <span className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: CAT_COLOR[item.categoria] + "22", color: CAT_COLOR[item.categoria] }}>
-                              {CAT_LABEL[item.categoria] ?? item.categoria}
-                            </span>
-                          </td>
-                          <td className="py-1.5 text-slate-700">{item.descricao}</td>
+                          <td className="py-1.5 text-slate-700 font-medium">{item.descricao}</td>
+                          <td className="py-1.5 text-right text-slate-500 text-xs">{item.quantidade ?? 1}</td>
+                          <td className="py-1.5 text-right text-slate-500 text-xs">{fmt(item.valor_unitario ?? item.valor)}</td>
                           <td className="py-1.5 text-right font-semibold text-orange-600">{fmt(item.valor)}</td>
                           <td className="py-1.5 text-right">
                             <button onClick={() => removeItem(idx)} className="text-slate-300 hover:text-red-400">✕</button>
@@ -561,7 +658,7 @@ export default function FinanceiroPage() {
                       ))}
                     </tbody>
                     <tfoot><tr>
-                      <td colSpan={2} className="py-2 font-bold text-slate-700 text-xs">Total compras</td>
+                      <td colSpan={3} className="py-2 font-bold text-slate-700 text-xs">Total compras</td>
                       <td className="py-2 text-right font-bold text-orange-600">{fmt(formCompras)}</td>
                       <td></td>
                     </tr></tfoot>
@@ -572,11 +669,11 @@ export default function FinanceiroPage() {
               </div>
 
               {/* Resultado rápido */}
-              {(parseFloat(form.vendas) > 0 || formCompras > 0) && (
+              {(formVendasTotal > 0 || formCompras > 0) && (
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="bg-green-50 rounded-xl p-3 text-center">
                     <p className="text-xs text-slate-500">Vendas</p>
-                    <p className="font-bold text-green-600">{fmt(parseFloat(form.vendas) || 0)}</p>
+                    <p className="font-bold text-green-600">{fmt(formVendasTotal)}</p>
                   </div>
                   <div className="bg-orange-50 rounded-xl p-3 text-center">
                     <p className="text-xs text-slate-500">Compras</p>
@@ -636,23 +733,42 @@ export default function FinanceiroPage() {
                       </div>
                     </div>
 
-                    {l.itens.length > 0 && (
-                      <details className="mt-3">
-                        <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
-                          {l.itens.length} {l.itens.length === 1 ? "item de compra" : "itens de compra"}
-                        </summary>
-                        <div className="mt-2 space-y-1">
-                          {l.itens.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs">
-                              <span className="px-1.5 py-0.5 rounded text-xs" style={{ background: CAT_COLOR[item.categoria] + "22", color: CAT_COLOR[item.categoria] }}>
-                                {CAT_LABEL[item.categoria] ?? item.categoria}
-                              </span>
-                              <span className="flex-1 text-slate-600">{item.descricao}</span>
-                              <span className="font-semibold text-orange-600">{fmt(item.valor)}</span>
+                    {(l.itens_vendas?.length > 0 || l.itens.length > 0) && (
+                      <div className="mt-3 space-y-2">
+                        {l.itens_vendas?.length > 0 && (
+                          <details>
+                            <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700 font-medium">
+                              💰 {l.itens_vendas.length} {l.itens_vendas.length === 1 ? "item de venda" : "itens de venda"}
+                            </summary>
+                            <div className="mt-2 space-y-1">
+                              {l.itens_vendas.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className="px-1.5 py-0.5 rounded" style={{ background: (CAT_VENDA_COLOR[item.categoria ?? ""] ?? "#ccc") + "33", color: CAT_VENDA_COLOR[item.categoria ?? ""] ?? "#666" }}>
+                                    {CAT_VENDA_LABEL[item.categoria ?? ""] ?? item.categoria}
+                                  </span>
+                                  <span className="flex-1 text-slate-600">{item.descricao}</span>
+                                  <span className="font-semibold text-green-600">{fmt(item.valor)}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      </details>
+                          </details>
+                        )}
+                        {l.itens.length > 0 && (
+                          <details>
+                            <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600">
+                              🛒 {l.itens.length} {l.itens.length === 1 ? "item de compra" : "itens de compra"}
+                            </summary>
+                            <div className="mt-2 space-y-1">
+                              {l.itens.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <span className="flex-1 text-slate-600">{item.descricao}{item.quantidade && item.quantidade > 1 ? ` × ${item.quantidade}` : ""}</span>
+                                  <span className="font-semibold text-orange-600">{fmt(item.valor)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -940,24 +1056,43 @@ export default function FinanceiroPage() {
                     <tr>
                       <th className="text-left px-5 py-3 text-slate-500 font-semibold">Sócio</th>
                       <th className="text-right px-5 py-3 text-slate-500 font-semibold">%</th>
-                      <th className="text-right px-5 py-3 text-slate-500 font-semibold">Valor</th>
+                      <th className="text-right px-5 py-3 text-slate-500 font-semibold">Valor Devido</th>
+                      <th className="text-right px-5 py-3 text-slate-500 font-semibold">Retirada</th>
+                      <th className="text-right px-5 py-3 text-slate-500 font-semibold">Saldo</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {socios.map((s, i) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-medium text-slate-800">{s.nome}</td>
-                        <td className="px-5 py-3 text-right text-slate-600">{s.percentual}%</td>
-                        <td className={`px-5 py-3 text-right font-bold ${totalLucro >= 0 ? "text-green-600" : "text-red-500"}`}>
-                          {fmt((totalLucro * s.percentual) / 100)}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <button onClick={() => setSocios((prev) => prev.filter((_, j) => j !== i))}
-                            className="text-slate-300 hover:text-red-400 text-xs">✕</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {socios.map((s, i) => {
+                      const devido = (totalLucro * s.percentual) / 100;
+                      const retirada = s.retirada ?? 0;
+                      const saldo = devido - retirada;
+                      return (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-5 py-3 font-medium text-slate-800">{s.nome}</td>
+                          <td className="px-5 py-3 text-right text-slate-600">{s.percentual}%</td>
+                          <td className={`px-5 py-3 text-right font-bold ${totalLucro >= 0 ? "text-green-600" : "text-red-500"}`}>
+                            {fmt(devido)}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <input
+                              type="number" step="0.01" min="0"
+                              value={retirada === 0 && s.retirada === undefined ? "" : retirada}
+                              onChange={(e) => setSocios((prev) => prev.map((x, j) => j === i ? { ...x, retirada: parseFloat(e.target.value) || 0 } : x))}
+                              placeholder="0,00"
+                              className="w-28 border border-slate-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            />
+                          </td>
+                          <td className={`px-5 py-3 text-right font-bold text-xs ${saldo >= 0 ? "text-blue-600" : "text-red-500"}`}>
+                            {fmt(saldo)}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <button onClick={() => setSocios((prev) => prev.filter((_, j) => j !== i))}
+                              className="text-slate-300 hover:text-red-400 text-xs">✕</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-slate-50 border-t">
                     <tr>
@@ -967,9 +1102,16 @@ export default function FinanceiroPage() {
                           <span className="text-amber-500 ml-2">⚠️ Diferente de 100%</span>
                         )}
                       </td>
-                      <td colSpan={2} className="px-5 py-3 text-right text-sm font-bold text-slate-700">
+                      <td className="px-5 py-3 text-right text-sm font-bold text-slate-700">
                         {fmt(socios.reduce((a, s) => a + (totalLucro * s.percentual) / 100, 0))}
                       </td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-slate-700">
+                        {fmt(socios.reduce((a, s) => a + (s.retirada ?? 0), 0))}
+                      </td>
+                      <td className="px-5 py-3 text-right text-sm font-bold text-blue-700">
+                        {fmt(socios.reduce((a, s) => a + ((totalLucro * s.percentual / 100) - (s.retirada ?? 0)), 0))}
+                      </td>
+                      <td></td>
                     </tr>
                   </tfoot>
                 </table>

@@ -17,8 +17,10 @@ async function checkOwnership(itemId: number, userId: number) {
 }
 
 const itemSchema = z.object({
-  categoria: z.string(),
+  categoria: z.string().optional(),
   descricao: z.string(),
+  quantidade: z.number().optional(),
+  valor_unitario: z.number().optional(),
   valor: z.number().min(0),
 });
 
@@ -26,6 +28,7 @@ const updateSchema = z.object({
   data: z.string().optional(),
   vendas: z.number().min(0).optional(),
   itens: z.array(itemSchema).optional(),
+  itens_vendas: z.array(itemSchema).optional(),
   obs: z.string().optional(),
 });
 
@@ -46,6 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (parsed.data.data !== undefined) { fields.push("data = ?"); values.push(parsed.data.data); }
   if (parsed.data.vendas !== undefined) { fields.push("vendas = ?"); values.push(parsed.data.vendas); }
   if (parsed.data.itens !== undefined) { fields.push("itens = ?"); values.push(JSON.stringify(parsed.data.itens)); }
+  if (parsed.data.itens_vendas !== undefined) { fields.push("itens_vendas = ?"); values.push(JSON.stringify(parsed.data.itens_vendas)); }
   if (parsed.data.obs !== undefined) { fields.push("obs = ?"); values.push(parsed.data.obs); }
 
   if (!fields.length) return NextResponse.json({ error: "Nada para atualizar." }, { status: 400 });
@@ -58,7 +62,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .bind(id)
     .first<Record<string, unknown>>();
 
-  return NextResponse.json({ ...row, itens: JSON.parse((row?.itens as string) || "[]") });
+  return NextResponse.json({
+    ...row,
+    itens: JSON.parse((row?.itens as string) || "[]"),
+    itens_vendas: JSON.parse((row?.itens_vendas as string) || "[]"),
+  });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -4,7 +4,13 @@ import { getDB } from "@/lib/db";
 import { z } from "zod";
 
 const schema = z.object({
-  dados: z.array(z.object({ nome: z.string().min(1), percentual: z.number().min(0).max(100) })),
+  dados: z.array(
+    z.object({
+      nome: z.string().min(1),
+      percentual: z.number().min(0).max(100),
+      retirada: z.number().min(0).optional(),
+    })
+  ),
 });
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ empresaId: string }> }) {

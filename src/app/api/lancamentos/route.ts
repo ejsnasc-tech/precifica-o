@@ -4,8 +4,10 @@ import { getDB } from "@/lib/db";
 import { z } from "zod";
 
 const itemSchema = z.object({
-  categoria: z.string(),
+  categoria: z.string().optional(),
   descricao: z.string(),
+  quantidade: z.number().optional(),
+  valor_unitario: z.number().optional(),
   valor: z.number().min(0),
 });
 
@@ -14,8 +16,17 @@ const schema = z.object({
   data: z.string(),
   vendas: z.number().min(0),
   itens: z.array(itemSchema).default([]),
+  itens_vendas: z.array(itemSchema).default([]),
   obs: z.string().default(""),
 });
+
+function parseRow(r: Record<string, unknown>) {
+  return {
+    ...r,
+    itens: JSON.parse((r.itens as string) || "[]"),
+    itens_vendas: JSON.parse((r.itens_vendas as string) || "[]"),
+  };
+}
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -48,9 +59,7 @@ export async function GET(req: NextRequest) {
   query += " ORDER BY data DESC";
   const { results } = await db.prepare(query).bind(...params).all<Record<string, unknown>>();
 
-  return NextResponse.json(
-    results.map((r) => ({ ...r, itens: JSON.parse((r.itens as string) || "[]") }))
-  );
+  return NextResponse.json(results.map(parseRow));
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +69,7 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
-  const { empresa_id, data, vendas, itens, obs } = parsed.data;
+  const { empresa_id, data, vendas, itens, itens_vendas, obs } = parsed.data;
   const db = await getDB();
 
   const owns = await db
@@ -70,8 +79,10 @@ export async function POST(req: NextRequest) {
   if (!owns) return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
 
   const result = await db
-    .prepare("INSERT INTO lancamentos (empresa_id, data, vendas, itens, obs) VALUES (?, ?, ?, ?, ?)")
-    .bind(empresa_id, data, vendas, JSON.stringify(itens), obs)
+    .prepare(
+      "INSERT INTO lancamentos (empresa_id, data, vendas, itens, itens_vendas, obs) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .bind(empresa_id, data, vendas, JSON.stringify(itens), JSON.stringify(itens_vendas), obs)
     .run();
 
   const row = await db
@@ -79,8 +90,5 @@ export async function POST(req: NextRequest) {
     .bind(result.meta.last_row_id)
     .first<Record<string, unknown>>();
 
-  return NextResponse.json(
-    { ...row, itens: JSON.parse((row?.itens as string) || "[]") },
-    { status: 201 }
-  );
+  return NextResponse.json(parseRow(row!), { status: 201 });
 }

@@ -1,0 +1,47 @@
+CREATE TABLE IF NOT EXISTS pf_lancamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  tipo TEXT NOT NULL CHECK(tipo IN ('receita', 'despesa')),
+  categoria TEXT NOT NULL DEFAULT 'outros',
+  descricao TEXT NOT NULL,
+  valor REAL NOT NULL DEFAULT 0,
+  obs TEXT NOT NULL DEFAULT '',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pf_cartoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  bandeira TEXT NOT NULL DEFAULT 'outros',
+  limite REAL NOT NULL DEFAULT 0,
+  dia_fechamento INTEGER NOT NULL DEFAULT 20,
+  dia_vencimento INTEGER NOT NULL DEFAULT 10,
+  cor TEXT NOT NULL DEFAULT '#6366f1',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pf_cartao_lancamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cartao_id INTEGER NOT NULL REFERENCES pf_cartoes(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  categoria TEXT NOT NULL DEFAULT 'outros',
+  valor_total REAL NOT NULL DEFAULT 0,
+  parcelas INTEGER NOT NULL DEFAULT 1,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pf_metas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '🎯',
+  valor_objetivo REAL NOT NULL DEFAULT 0,
+  valor_atual REAL NOT NULL DEFAULT 0,
+  prazo TEXT,
+  cor TEXT NOT NULL DEFAULT '#6366f1',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+);
