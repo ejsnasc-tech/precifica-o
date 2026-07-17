@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Lanchonete</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --primary: #e65c00;
+    --primary-dark: #c44f00;
+    --secondary: #f9a825;
+    --bg: #f5f5f5;
+    --card: #ffffff;
+    --text: #333;
+    --text-light: #666;
+    --border: #e0e0e0;
+    --green: #2e7d32;
+    --red: #c62828;
+    --blue: #1565c0;
+    --purple: #6a1b9a;
+    --shadow: 0 2px 8px rgba(0,0,0,0.10);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, var(--primary), var(--secondary));
+    color: #fff;
+    padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    height: 60px;
+  }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+  header span { font-size: 13px; opacity: 0.85; }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+  .btn-header {
+    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+    color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: background 0.2s;
+  }
+  .btn-header:hover { background: rgba(255,255,255,0.35); }
+
+  /* NAV TABS */
+  nav {
+    background: #fff;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    overflow-x: auto;
+    padding: 0 16px;
+  }
+  nav button {
+    background: none; border: none; padding: 14px 18px;
+    cursor: pointer; font-size: 14px; font-weight: 600;
+    color: var(--text-light); border-bottom: 3px solid transparent;
+    white-space: nowrap; transition: all 0.2s; margin-bottom: -2px;
+  }
+  nav button:hover { color: var(--primary); }
+  nav button.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+  /* LAYOUT */
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px; box-shadow: var(--shadow);
+    border-left: 5px solid;
+  }
+  .kpi-card.vendas { border-color: var(--green); }
+  .kpi-card.compras { border-color: var(--red); }
+  .kpi-card.lucro { border-color: var(--blue); }
+  .kpi-card.registros { border-color: var(--secondary); }
+  .kpi-card.socio1 { border-color: #7b1fa2; }
+  .kpi-card.socio2 { border-color: #00838f; }
+  .kpi-card.socio3 { border-color: #e65100; }
+  .kpi-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-light); margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red { color: var(--red); }
+  .kpi-value.blue { color: var(--blue); }
+  .kpi-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+  /* CHARTS */
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; margin-bottom: 24px; }
+  .chart-card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .chart-card h3 { font-size: 14px; color: var(--text-light); text-transform: uppercase; margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* FORM */
+  .form-card { background: var(--card); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+  .form-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--primary); }
+  .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--text-light); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 7px;
+    font-size: 14px; color: var(--text); background: #fafafa;
+    transition: border 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary); background: #fff;
+  }
+  .form-group textarea { resize: vertical; min-height: 60px; }
+
+  /* ITEMS DE COMPRA */
+  .itens-section { margin-bottom: 16px; }
+  .itens-section h3 { font-size: 14px; font-weight: 700; color: var(--text-light); text-transform: uppercase; margin-bottom: 10px; }
+  .item-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .item-row input { flex: 1; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 7px; font-size: 14px; }
+  .item-row select { padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 7px; font-size: 14px; min-width: 140px; }
+  .item-row input:focus, .item-row select:focus { outline: none; border-color: var(--primary); }
+  .btn-remove { background: #ffebee; color: var(--red); border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 16px; font-weight: 700; }
+  .btn-remove:hover { background: #ffcdd2; }
+  .btn-add-item { background: #e8f5e9; color: var(--green); border: 1.5px dashed var(--green); border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+  .btn-add-item:hover { background: #c8e6c9; }
+
+  /* BUTTONS */
+  .btn-primary {
+    background: var(--primary); color: #fff; border: none;
+    padding: 11px 24px; border-radius: 7px; font-size: 15px;
+    font-weight: 700; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-secondary {
+    background: #fff; color: var(--text); border: 1.5px solid var(--border);
+    padding: 10px 20px; border-radius: 7px; font-size: 14px;
+    font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-danger { background: var(--red); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-danger:hover { background: #b71c1c; }
+  .btn-edit { background: var(--blue); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn-edit:hover { background: #0d47a1; }
+  .btn-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #f5f5f5; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: var(--text-light); border-bottom: 2px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: #fafafa; }
+  tr:last-child td { border-bottom: none; }
+  .badge {
+    display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700;
+  }
+  .badge-green { background: #e8f5e9; color: var(--green); }
+  .badge-red { background: #ffebee; color: var(--red); }
+  .badge-blue { background: #e3f2fd; color: var(--blue); }
+
+  /* FILTROS */
+  .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 20px; }
+  .filter-bar .form-group { flex: 0 0 auto; }
+  .filter-bar .form-group input, .filter-bar .form-group select { padding: 8px 12px; }
+
+  /* PERIODO BADGE */
+  .periodo-select { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .periodo-btn { padding: 7px 16px; border-radius: 20px; border: 1.5px solid var(--border); background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-light); transition: all 0.2s; }
+  .periodo-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  /* SOCIOS */
+  .socio-card { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .socio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .socio-header h2 { font-size: 18px; font-weight: 700; }
+  .socio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .socio-item {
+    border-radius: var(--radius); padding: 20px; text-align: center;
+    background: linear-gradient(135deg, #fff, #f9f9f9);
+    border: 2px solid var(--border); box-shadow: var(--shadow);
+  }
+  .socio-nome { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .socio-pct { font-size: 13px; color: var(--text-light); margin-bottom: 12px; }
+  .socio-valor { font-size: 28px; font-weight: 800; }
+  .socio-mensal { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+  /* CONFIGURAÇÕES */
+  .config-section { background: var(--card); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .config-section h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: var(--primary); }
+  .pct-warning { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+
+  /* PRINT */
+  .no-print { }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; }
+    header { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .kpi-card { break-inside: avoid; }
+    nav { display: none; }
+    .tab-content { display: block !important; }
+    .form-card { display: none; }
+  }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--text-light); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+
+  /* SUMMARY ROW */
+  .summary-row { background: #e3f2fd; font-weight: 700; }
+  .summary-row td { color: var(--blue); }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:#fff; border-radius:12px; padding:28px; max-width:520px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto; }
+  .modal h2 { font-size:18px; font-weight:700; margin-bottom:16px; color:var(--primary); }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 600px) {
+    header h1 { font-size:16px; }
+    main { padding: 16px 10px; }
+    .kpi-value { font-size: 20px; }
+  }
+
+  .tag {
+    display:inline-block; padding:2px 8px; border-radius:10px;
+    font-size:11px; font-weight:700; margin-right:4px; margin-bottom:2px;
+  }
+  .tag-insumos { background:#fff3e0; color:#e65100; }
+  .tag-embalagens { background:#f3e5f5; color:#7b1fa2; }
+  .tag-limpeza { background:#e8f5e9; color:#2e7d32; }
+  .tag-equipamentos { background:#e3f2fd; color:#1565c0; }
+  .tag-outros { background:#fce4ec; color:#c62828; }
+  .tag-pessoal { background:#e0f2f1; color:#00695c; }
+
+  .totals-bar {
+    display:flex; gap:16px; flex-wrap:wrap;
+    background: linear-gradient(135deg, #fff3e0, #fff8e1);
+    border-radius:var(--radius); padding:16px 20px;
+    margin-bottom:20px; border:1px solid #ffe0b2;
+  }
+  .totals-bar-item { text-align:center; }
+  .totals-bar-item .label { font-size:11px; text-transform:uppercase; color:var(--text-light); }
+  .totals-bar-item .val { font-size:18px; font-weight:800; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="empresa-nome-header">🍔 Gestor de Lanchonete</h1>
+  <div class="header-right no-print">
+    <span id="data-hoje"></span>
+    <button class="btn-header" onclick="exportarDados()">⬇ Exportar</button>
+    <button class="btn-header" onclick="document.getElementById('importInput').click()">⬆ Importar</button>
+    <input type="file" id="importInput" accept=".json" style="display:none" onchange="importarDados(event)">
+    <button class="btn-header" onclick="window.print()">🖨 Imprimir</button>
+  </div>
+</header>
+
+<nav class="no-print">
+  <button class="active" onclick="showTab('dashboard', this)">📊 Dashboard</button>
+  <button onclick="showTab('lancamentos', this)">➕ Lançamentos</button>
+  <button onclick="showTab('semanal', this)">🗓 Semanal</button>
+  <button onclick="showTab('mensal', this)">📅 Mensal</button>
+  <button onclick="showTab('anual', this)">📆 Anual</button>
+  <button onclick="showTab('socios', this)">👥 Sócios</button>
+  <button onclick="showTab('config', this)">⚙ Configurações</button>
+</nav>
+
+<main>
+
+<!-- ====== DASHBOARD ====== -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="periodo-select no-print">
+    <button class="periodo-btn active" onclick="setDashboardPeriodo('mes', this)">Este mês</button>
+    <button class="periodo-btn" onclick="setDashboardPeriodo('semana', this)">Esta semana</button>
+    <button class="periodo-btn" onclick="setDashboardPeriodo('ano', this)">Este ano</button>
+    <button class="periodo-btn" onclick="setDashboardPeriodo('total', this)">Tudo</button>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Vendas vs Compras (últimos 30 dias)</h3>
+      <div class="chart-wrap"><canvas id="chartVendasCompras"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Distribuição de Compras por Categoria</h3>
+      <div class="chart-wrap"><canvas id="chartCategorias"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Lucro Diário (últimos 30 dias)</h3>
+      <div class="chart-wrap"><canvas id="chartLucro"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Margem de Lucro % (por mês)</h3>
+      <div class="chart-wrap"><canvas id="chartMargem"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== LANÇAMENTOS ====== -->
+<div class="tab-content" id="tab-lancamentos">
+  <div class="form-card no-print">
+    <h2>➕ Novo Lançamento Diário</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Data</label>
+        <input type="date" id="f-data">
+      </div>
+      <div class="form-group">
+        <label>Total de Vendas (R$)</label>
+        <input type="number" id="f-vendas" placeholder="0,00" step="0.01" min="0">
+      </div>
+    </div>
+
+    <div class="itens-section">
+      <h3>📦 Itens de Compra</h3>
+      <div id="itens-compra"></div>
+      <button class="btn-add-item" onclick="addItemCompra()">+ Adicionar Item de Compra</button>
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Observações</label>
+      <textarea id="f-obs" placeholder="Ex: feriado, movimento fraco, promoção..."></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" onclick="salvarLancamento()">💾 Salvar Lançamento</button>
+      <button class="btn-secondary" onclick="limparForm()">🗑 Limpar</button>
+    </div>
+  </div>
+
+  <div class="form-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <h2 style="margin:0">📋 Histórico de Lançamentos</h2>
+      <div class="filter-bar" style="margin:0">
+        <div class="form-group">
+          <label>Mês/Ano</label>
+          <input type="month" id="filtro-mes" onchange="renderHistorico()">
+        </div>
+      </div>
+    </div>
+
+    <div class="totals-bar" id="historico-totals"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Vendas</th>
+            <th>Compras</th>
+            <th>Lucro</th>
+            <th>Margem</th>
+            <th>Obs</th>
+            <th class="no-print">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="historico-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SEMANAL ====== -->
+<div class="tab-content" id="tab-semanal">
+  <div class="form-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <h2 style="margin:0">🗓 Resumo Semanal</h2>
+      <div class="filter-bar" style="margin:0">
+        <div class="form-group">
+          <label>Semana de</label>
+          <input type="week" id="filtro-semana" onchange="renderSemanal()">
+        </div>
+      </div>
+    </div>
+    <div class="kpi-grid" id="kpi-semanal"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Dia</th><th>Vendas</th><th>Compras</th><th>Lucro</th><th>Margem</th><th>Obs</th></tr>
+        </thead>
+        <tbody id="semanal-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MENSAL ====== -->
+<div class="tab-content" id="tab-mensal">
+  <div class="form-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <h2 style="margin:0">📅 Resumo Mensal</h2>
+      <div class="filter-bar" style="margin:0">
+        <div class="form-group">
+          <label>Ano</label>
+          <select id="filtro-ano-mensal" onchange="renderMensal()"></select>
+        </div>
+      </div>
+    </div>
+    <div class="kpi-grid" id="kpi-mensal"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Mês</th><th>Dias</th><th>Vendas</th><th>Compras</th><th>Lucro</th><th>Margem</th></tr>
+        </thead>
+        <tbody id="mensal-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== ANUAL ====== -->
+<div class="tab-content" id="tab-anual">
+  <div class="form-card">
+    <h2>📆 Resumo Anual</h2>
+    <div class="kpi-grid" id="kpi-anual"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Ano</th><th>Dias</th><th>Vendas</th><th>Compras</th><th>Lucro</th><th>Margem</th><th>Média Diária</th></tr>
+        </thead>
+        <tbody id="anual-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SÓCIOS ====== -->
+<div class="tab-content" id="tab-socios">
+  <div class="form-card">
+    <div class="socio-header">
+      <h2>👥 Distribuição de Lucros</h2>
+      <div class="periodo-select" style="margin:0">
+        <button class="periodo-btn active" onclick="setSocioPeriodo('mes', this)">Este mês</button>
+        <button class="periodo-btn" onclick="setSocioPeriodo('semana', this)">Esta semana</button>
+        <button class="periodo-btn" onclick="setSocioPeriodo('ano', this)">Este ano</button>
+        <button class="periodo-btn" onclick="setSocioPeriodo('total', this)">Tudo</button>
+      </div>
+    </div>
+
+    <div class="socio-grid" id="socio-cards"></div>
+
+    <h3 style="margin-bottom:12px; color:var(--text-light); text-transform:uppercase; font-size:13px;">Histórico por mês</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th>Lucro Total</th>
+            <th id="th-s1">Sócio 1</th>
+            <th id="th-s2">Sócio 2</th>
+            <th id="th-s3">Sócio 3</th>
+          </tr>
+        </thead>
+        <tbody id="socios-historico-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ====== CONFIG ====== -->
+<div class="tab-content" id="tab-config">
+  <div class="config-section">
+    <h3>🏢 Dados da Empresa</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Nome da Empresa</label>
+        <input type="text" id="cfg-empresa" placeholder="Minha Lanchonete">
+      </div>
+    </div>
+  </div>
+
+  <div class="config-section">
+    <h3>👥 Sócios e Percentuais de Divisão</h3>
+    <div id="socios-config"></div>
+    <div class="pct-warning" id="pct-warning">⚠ A soma dos percentuais deve ser 100%</div>
+    <div style="margin-top:16px">
+      <button class="btn-primary" onclick="salvarConfig()">💾 Salvar Configurações</button>
+    </div>
+  </div>
+
+  <div class="config-section">
+    <h3>🗑 Gerenciar Dados</h3>
+    <p style="color:var(--text-light); font-size:13px; margin-bottom:16px;">
+      Exporte seus dados regularmente para ter backup. O arquivo pode ser importado depois.
+    </p>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="exportarDados()">⬇ Exportar JSON</button>
+      <button class="btn-secondary" onclick="document.getElementById('importInput').click()">⬆ Importar JSON</button>
+      <button class="btn-danger" onclick="limparTodosDados()">⚠ Apagar Tudo</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- Modal de detalhes -->
+<div class="modal-overlay" id="modal-overlay" onclick="fecharModal(event)">
+  <div class="modal" id="modal-content">
+    <h2 id="modal-title"></h2>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="fecharModalBtn()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =================== DADOS ===================
+const DB_KEY = 'lanchoneteDados';
+
+function getData() {
+  try {
+    return JSON.parse(localStorage.getItem(DB_KEY)) || getDefaultData();
+  } catch(e) { return getDefaultData(); }
+}
+
+function saveData(data) {
+  localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+function getDefaultData() {
+  return {
+    config: {
+      empresa: 'Minha Lanchonete',
+      socios: [
+        { nome: 'Sócio 1', percentual: 33.33 },
+        { nome: 'Sócio 2', percentual: 33.33 },
+        { nome: 'Sócio 3', percentual: 33.34 }
+      ]
+    },
+    lancamentos: []
+  };
+}
+
+// =================== UTILS ===================
+function fmt(v) {
+  return 'R$ ' + (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtPct(v) {
+  return (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+}
+function fmtData(s) {
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+function hoje() {
+  return new Date().toISOString().split('T')[0];
+}
+function getMes(data) { return data ? data.substring(0, 7) : ''; }
+function getAno(data) { return data ? data.substring(0, 4) : ''; }
+function getSemana(data) {
+  if (!data) return '';
+  const d = new Date(data + 'T00:00:00');
+  const startOfYear = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+function nomeMes(n) {
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return meses[parseInt(n) - 1] || n;
+}
+function diaSemana(data) {
+  const dias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const d = new Date(data + 'T00:00:00');
+  return dias[d.getDay()];
+}
+
+// =================== INIT ===================
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('data-hoje').textContent = new Date().toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('f-data').value = hoje();
+  document.getElementById('filtro-mes').value = hoje().substring(0,7);
+
+  const semanaInput = document.getElementById('filtro-semana');
+  semanaInput.value = getSemana(hoje());
+
+  carregarConfig();
+  addItemCompra();
+  renderDashboard('mes');
+  renderHistorico();
+  renderSemanal();
+  renderMensal();
+  renderAnual();
+  renderSocios('mes');
+  renderHistoricoSocios();
+});
+
+// =================== TABS ===================
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+
+  if (id === 'mensal') preencherSelectAno();
+  if (id === 'anual') renderAnual();
+  if (id === 'semanal') renderSemanal();
+}
+
+// =================== CONFIG ===================
+function carregarConfig() {
+  const d = getData();
+  document.getElementById('cfg-empresa').value = d.config.empresa;
+  document.getElementById('empresa-nome-header').textContent = '🍔 ' + d.config.empresa;
+  renderSociosConfig(d.config.socios);
+  atualizarThSocios(d.config.socios);
+}
+
+function renderSociosConfig(socios) {
+  const el = document.getElementById('socios-config');
+  el.innerHTML = socios.map((s, i) => `
+    <div class="form-row" style="margin-bottom:8px">
+      <div class="form-group">
+        <label>Nome do Sócio ${i+1}</label>
+        <input type="text" id="cfg-s${i}-nome" value="${s.nome}" oninput="checkPct()">
+      </div>
+      <div class="form-group" style="max-width:160px">
+        <label>Percentual (%)</label>
+        <input type="number" id="cfg-s${i}-pct" value="${s.percentual}" step="0.01" min="0" max="100" oninput="checkPct()">
+      </div>
+    </div>
+  `).join('');
+}
+
+function checkPct() {
+  const total = [0,1,2].reduce((acc,i) => acc + parseFloat(document.getElementById(`cfg-s${i}-pct`)?.value || 0), 0);
+  document.getElementById('pct-warning').style.display = Math.abs(total - 100) > 0.05 ? 'block' : 'none';
+}
+
+function salvarConfig() {
+  const d = getData();
+  d.config.empresa = document.getElementById('cfg-empresa').value || 'Minha Lanchonete';
+  d.config.socios = [0,1,2].map(i => ({
+    nome: document.getElementById(`cfg-s${i}-nome`).value || `Sócio ${i+1}`,
+    percentual: parseFloat(document.getElementById(`cfg-s${i}-pct`).value) || 0
+  }));
+  const total = d.config.socios.reduce((a,s) => a + s.percentual, 0);
+  if (Math.abs(total - 100) > 0.05) { alert('A soma dos percentuais deve ser 100%!'); return; }
+  saveData(d);
+  document.getElementById('empresa-nome-header').textContent = '🍔 ' + d.config.empresa;
+  atualizarThSocios(d.config.socios);
+  alert('✅ Configurações salvas!');
+  renderDashboard(window._dashPeriodo || 'mes');
+  renderSocios(window._socioPeriodo || 'mes');
+  renderHistoricoSocios();
+}
+
+function atualizarThSocios(socios) {
+  ['th-s1','th-s2','th-s3'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = socios[i]?.nome || `Sócio ${i+1}`;
+  });
+}
+
+// =================== LANÇAMENTOS ===================
+let itemCount = 0;
+
+function addItemCompra(desc='', valor='', cat='insumos') {
+  const id = ++itemCount;
+  const el = document.createElement('div');
+  el.className = 'item-row';
+  el.id = 'item-' + id;
+  el.innerHTML = `
+    <select onchange="">
+      <option value="insumos" ${cat==='insumos'?'selected':''}>🥩 Insumos</option>
+      <option value="embalagens" ${cat==='embalagens'?'selected':''}>📦 Embalagens</option>
+      <option value="limpeza" ${cat==='limpeza'?'selected':''}>🧹 Limpeza</option>
+      <option value="pessoal" ${cat==='pessoal'?'selected':''}>👷 Pessoal</option>
+      <option value="equipamentos" ${cat==='equipamentos'?'selected':''}>🔧 Equipamentos</option>
+      <option value="outros" ${cat==='outros'?'selected':''}>📋 Outros</option>
+    </select>
+    <input type="text" placeholder="Descrição do item" value="${desc}" style="flex:2">
+    <input type="number" placeholder="R$ 0,00" value="${valor}" step="0.01" min="0" style="flex:1; max-width:130px">
+    <button class="btn-remove" onclick="document.getElementById('item-${id}').remove()">✕</button>
+  `;
+  document.getElementById('itens-compra').appendChild(el);
+}
+
+function getItensCompra() {
+  const rows = document.querySelectorAll('#itens-compra .item-row');
+  return Array.from(rows).map(row => {
+    const inputs = row.querySelectorAll('input');
+    const sel = row.querySelector('select');
+    return {
+      categoria: sel ? sel.value : 'outros',
+      descricao: inputs[0]?.value || '',
+      valor: parseFloat(inputs[1]?.value) || 0
+    };
+  }).filter(i => i.valor > 0 || i.descricao);
+}
+
+function salvarLancamento() {
+  const data = document.getElementById('f-data').value;
+  const vendas = parseFloat(document.getElementById('f-vendas').value) || 0;
+  const obs = document.getElementById('f-obs').value;
+  const itens = getItensCompra();
+
+  if (!data) { alert('Informe a data!'); return; }
+  if (vendas <= 0 && itens.length === 0) { alert('Informe ao menos vendas ou compras!'); return; }
+
+  const compras = itens.reduce((a,i) => a + i.valor, 0);
+  const db = getData();
+
+  // Verificar se já existe lançamento para essa data
+  const idx = db.lancamentos.findIndex(l => l.data === data);
+  const novo = { id: Date.now(), data, vendas, compras, itens, obs, lucro: vendas - compras };
+
+  if (idx >= 0) {
+    if (!confirm(`Já existe um lançamento para ${fmtData(data)}. Deseja substituir?`)) return;
+    db.lancamentos[idx] = novo;
+  } else {
+    db.lancamentos.push(novo);
+  }
+  db.lancamentos.sort((a,b) => b.data.localeCompare(a.data));
+  saveData(db);
+
+  alert(`✅ Lançamento salvo!\nVendas: ${fmt(vendas)} | Compras: ${fmt(compras)} | Lucro: ${fmt(vendas - compras)}`);
+  limparForm();
+  renderHistorico();
+  renderDashboard(window._dashPeriodo || 'mes');
+  renderSocios(window._socioPeriodo || 'mes');
+  renderAnual();
+}
+
+function limparForm() {
+  document.getElementById('f-data').value = hoje();
+  document.getElementById('f-vendas').value = '';
+  document.getElementById('f-obs').value = '';
+  document.getElementById('itens-compra').innerHTML = '';
+  itemCount = 0;
+  addItemCompra();
+}
+
+// =================== HISTÓRICO ===================
+function renderHistorico() {
+  const filtroMes = document.getElementById('filtro-mes').value;
+  const db = getData();
+  const lista = filtroMes
+    ? db.lancamentos.filter(l => getMes(l.data) === filtroMes)
+    : db.lancamentos;
+
+  const totV = lista.reduce((a,l) => a + l.vendas, 0);
+  const totC = lista.reduce((a,l) => a + l.compras, 0);
+  const totL = totV - totC;
+  const margem = totV > 0 ? (totL / totV * 100) : 0;
+
+  document.getElementById('historico-totals').innerHTML = `
+    <div class="totals-bar-item"><div class="label">Dias</div><div class="val" style="color:var(--blue)">${lista.length}</div></div>
+    <div class="totals-bar-item"><div class="label">Vendas</div><div class="val" style="color:var(--green)">${fmt(totV)}</div></div>
+    <div class="totals-bar-item"><div class="label">Compras</div><div class="val" style="color:var(--red)">${fmt(totC)}</div></div>
+    <div class="totals-bar-item"><div class="label">Lucro</div><div class="val" style="color:${totL>=0?'var(--blue)':'var(--red)'}">${fmt(totL)}</div></div>
+    <div class="totals-bar-item"><div class="label">Margem</div><div class="val" style="color:var(--primary)">${fmtPct(margem)}</div></div>
+  `;
+
+  const tbody = document.getElementById('historico-body');
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📋</div><p>Nenhum lançamento encontrado</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map(l => {
+    const cor = l.lucro >= 0 ? 'green' : 'red';
+    const margem = l.vendas > 0 ? (l.lucro / l.vendas * 100).toFixed(1) : 0;
+    const tags = [...new Set((l.itens||[]).map(i => i.categoria))].map(c => `<span class="tag tag-${c}">${c}</span>`).join('');
+    return `
+      <tr>
+        <td><strong>${fmtData(l.data)}</strong><br><small style="color:var(--text-light)">${diaSemana(l.data)}</small></td>
+        <td class="green" style="color:var(--green);font-weight:700">${fmt(l.vendas)}</td>
+        <td style="color:var(--red)">${fmt(l.compras)} ${tags}</td>
+        <td><span class="badge badge-${cor}">${fmt(l.lucro)}</span></td>
+        <td>${fmtPct(margem)}</td>
+        <td style="font-size:12px;color:var(--text-light)">${l.obs||''}</td>
+        <td class="no-print" style="white-space:nowrap">
+          <button class="btn-edit" onclick="editarLancamento('${l.id}')">✏ Editar</button>
+          <button class="btn-danger" style="margin-left:4px" onclick="excluirLancamento('${l.id}')">✕</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function excluirLancamento(id) {
+  if (!confirm('Excluir este lançamento?')) return;
+  const db = getData();
+  db.lancamentos = db.lancamentos.filter(l => String(l.id) !== String(id));
+  saveData(db);
+  renderHistorico();
+  renderDashboard(window._dashPeriodo || 'mes');
+  renderSocios(window._socioPeriodo || 'mes');
+  renderAnual();
+}
+
+function editarLancamento(id) {
+  const db = getData();
+  const l = db.lancamentos.find(l => String(l.id) === String(id));
+  if (!l) return;
+
+  document.getElementById('f-data').value = l.data;
+  document.getElementById('f-vendas').value = l.vendas;
+  document.getElementById('f-obs').value = l.obs || '';
+  document.getElementById('itens-compra').innerHTML = '';
+  itemCount = 0;
+  (l.itens || []).forEach(i => addItemCompra(i.descricao, i.valor, i.categoria));
+  if (!l.itens || l.itens.length === 0) addItemCompra();
+
+  // Remover o original antes de re-salvar
+  db.lancamentos = db.lancamentos.filter(x => String(x.id) !== String(id));
+  saveData(db);
+
+  showTab('lancamentos', document.querySelector('nav button:nth-child(2)'));
+  window.scrollTo(0, 0);
+}
+
+// =================== SEMANAL ===================
+function renderSemanal() {
+  const semana = document.getElementById('filtro-semana').value;
+  const db = getData();
+
+  // Calcular intervalo da semana
+  let inicio, fim;
+  if (semana) {
+    const [ano, wk] = semana.split('-W');
+    const d = new Date(parseInt(ano), 0, 1 + (parseInt(wk) - 1) * 7);
+    const day = d.getDay();
+    inicio = new Date(d);
+    inicio.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+    fim = new Date(inicio);
+    fim.setDate(inicio.getDate() + 6);
+  }
+
+  const lista = semana
+    ? db.lancamentos.filter(l => {
+        const ld = new Date(l.data + 'T00:00:00');
+        return ld >= inicio && ld <= fim;
+      })
+    : db.lancamentos;
+
+  const totV = lista.reduce((a,l) => a + l.vendas, 0);
+  const totC = lista.reduce((a,l) => a + l.compras, 0);
+  const totL = totV - totC;
+
+  document.getElementById('kpi-semanal').innerHTML = `
+    <div class="kpi-card vendas"><div class="kpi-label">Vendas</div><div class="kpi-value green">${fmt(totV)}</div></div>
+    <div class="kpi-card compras"><div class="kpi-label">Compras</div><div class="kpi-value red">${fmt(totC)}</div></div>
+    <div class="kpi-card lucro"><div class="kpi-label">Lucro</div><div class="kpi-value ${totL>=0?'blue':'red'}">${fmt(totL)}</div></div>
+    <div class="kpi-card registros"><div class="kpi-label">Dias lançados</div><div class="kpi-value">${lista.length}</div></div>
+  `;
+
+  const tbody = document.getElementById('semanal-body');
+  if (lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📋</div><p>Nenhum dado para esta semana</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = lista.map(l => {
+    const m = l.vendas > 0 ? (l.lucro/l.vendas*100).toFixed(1) : 0;
+    return `<tr>
+      <td><strong>${fmtData(l.data)}</strong> <small style="color:var(--text-light)">${diaSemana(l.data)}</small></td>
+      <td style="color:var(--green);font-weight:700">${fmt(l.vendas)}</td>
+      <td style="color:var(--red)">${fmt(l.compras)}</td>
+      <td><span class="badge badge-${l.lucro>=0?'green':'red'}">${fmt(l.lucro)}</span></td>
+      <td>${fmtPct(m)}</td>
+      <td style="font-size:12px;color:var(--text-light)">${l.obs||''}</td>
+    </tr>`;
+  }).join('') + `
+    <tr class="summary-row">
+      <td>TOTAL</td>
+      <td>${fmt(totV)}</td>
+      <td>${fmt(totC)}</td>
+      <td>${fmt(totL)}</td>
+      <td>${totV>0?fmtPct(totL/totV*100):'-'}</td>
+      <td></td>
+    </tr>`;
+}
+
+// =================== MENSAL ===================
+function preencherSelectAno() {
+  const db = getData();
+  const anos = [...new Set(db.lancamentos.map(l => getAno(l.data)))].sort().reverse();
+  if (anos.length === 0) anos.push(new Date().getFullYear().toString());
+  const sel = document.getElementById('filtro-ano-mensal');
+  const cur = sel.value;
+  sel.innerHTML = anos.map(a => `<option value="${a}" ${a===cur?'selected':''}>${a}</option>`).join('');
+  if (!sel.value) sel.value = anos[0];
+  renderMensal();
+}
+
+function renderMensal() {
+  const ano = document.getElementById('filtro-ano-mensal').value;
+  const db = getData();
+  const lista = ano ? db.lancamentos.filter(l => getAno(l.data) === ano) : db.lancamentos;
+
+  // Agrupar por mês
+  const porMes = {};
+  lista.forEach(l => {
+    const mes = getMes(l.data);
+    if (!porMes[mes]) porMes[mes] = { dias: 0, vendas: 0, compras: 0 };
+    porMes[mes].dias++;
+    porMes[mes].vendas += l.vendas;
+    porMes[mes].compras += l.compras;
+  });
+
+  const meses = Object.keys(porMes).sort();
+  const totV = meses.reduce((a,m) => a + porMes[m].vendas, 0);
+  const totC = meses.reduce((a,m) => a + porMes[m].compras, 0);
+  const totL = totV - totC;
+  const melhorMes = meses.reduce((best,m) => (porMes[m].vendas - porMes[m].compras) > (porMes[best]?.vendas||0 - porMes[best]?.compras||0) ? m : best, meses[0]);
+
+  document.getElementById('kpi-mensal').innerHTML = `
+    <div class="kpi-card vendas"><div class="kpi-label">Total Vendas</div><div class="kpi-value green">${fmt(totV)}</div><div class="kpi-sub">${meses.length} meses lançados</div></div>
+    <div class="kpi-card compras"><div class="kpi-label">Total Compras</div><div class="kpi-value red">${fmt(totC)}</div></div>
+    <div class="kpi-card lucro"><div class="kpi-label">Lucro Total</div><div class="kpi-value ${totL>=0?'blue':'red'}">${fmt(totL)}</div></div>
+    <div class="kpi-card registros"><div class="kpi-label">Margem Geral</div><div class="kpi-value">${totV>0?fmtPct(totL/totV*100):'-'}</div></div>
+  `;
+
+  const tbody = document.getElementById('mensal-body');
+  if (meses.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="icon">📅</div><p>Nenhum dado para este ano</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = meses.map(mes => {
+    const d = porMes[mes];
+    const l = d.vendas - d.compras;
+    const m = d.vendas > 0 ? (l/d.vendas*100).toFixed(1) : 0;
+    const [ano, mn] = mes.split('-');
+    return `<tr>
+      <td><strong>${nomeMes(mn)} ${ano}</strong></td>
+      <td>${d.dias}</td>
+      <td style="color:var(--green);font-weight:700">${fmt(d.vendas)}</td>
+      <td style="color:var(--red)">${fmt(d.compras)}</td>
+      <td><span class="badge badge-${l>=0?'green':'red'}">${fmt(l)}</span></td>
+      <td>${fmtPct(m)}</td>
+    </tr>`;
+  }).join('') + `
+    <tr class="summary-row">
+      <td>TOTAL</td>
+      <td>${lista.length}</td>
+      <td>${fmt(totV)}</td>
+      <td>${fmt(totC)}</td>
+      <td>${fmt(totL)}</td>
+      <td>${totV>0?fmtPct(totL/totV*100):'-'}</td>
+    </tr>`;
+}
+
+// =================== ANUAL ===================
+function renderAnual() {
+  const db = getData();
+  const porAno = {};
+  db.lancamentos.forEach(l => {
+    const ano = getAno(l.data);
+    if (!porAno[ano]) porAno[ano] = { dias: 0, vendas: 0, compras: 0 };
+    porAno[ano].dias++;
+    porAno[ano].vendas += l.vendas;
+    porAno[ano].compras += l.compras;
+  });
+
+  const anos = Object.keys(porAno).sort().reverse();
+  const totV = anos.reduce((a,x) => a + porAno[x].vendas, 0);
+  const totC = anos.reduce((a,x) => a + porAno[x].compras, 0);
+  const totL = totV - totC;
+
+  document.getElementById('kpi-anual').innerHTML = `
+    <div class="kpi-card vendas"><div class="kpi-label">Total Vendas (geral)</div><div class="kpi-value green">${fmt(totV)}</div></div>
+    <div class="kpi-card compras"><div class="kpi-label">Total Compras (geral)</div><div class="kpi-value red">${fmt(totC)}</div></div>
+    <div class="kpi-card lucro"><div class="kpi-label">Lucro Total (geral)</div><div class="kpi-value ${totL>=0?'blue':'red'}">${fmt(totL)}</div></div>
+    <div class="kpi-card registros"><div class="kpi-label">Anos de operação</div><div class="kpi-value">${anos.length}</div></div>
+  `;
+
+  const tbody = document.getElementById('anual-body');
+  if (anos.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📆</div><p>Nenhum dado cadastrado ainda</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = anos.map(ano => {
+    const d = porAno[ano];
+    const l = d.vendas - d.compras;
+    const m = d.vendas > 0 ? (l/d.vendas*100).toFixed(1) : 0;
+    return `<tr>
+      <td><strong>${ano}</strong></td>
+      <td>${d.dias}</td>
+      <td style="color:var(--green);font-weight:700">${fmt(d.vendas)}</td>
+      <td style="color:var(--red)">${fmt(d.compras)}</td>
+      <td><span class="badge badge-${l>=0?'green':'red'}">${fmt(l)}</span></td>
+      <td>${fmtPct(m)}</td>
+      <td>${d.dias > 0 ? fmt(l/d.dias) : '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// =================== SÓCIOS ===================
+window._socioPeriodo = 'mes';
+
+function setSocioPeriodo(p, btn) {
+  window._socioPeriodo = p;
+  document.querySelectorAll('#tab-socios .periodo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSocios(p);
+}
+
+function getLancamentosPeriodo(p) {
+  const db = getData();
+  const hoje_ = hoje();
+  const mesAtual = getMes(hoje_);
+  const anoAtual = getAno(hoje_);
+
+  if (p === 'mes') return db.lancamentos.filter(l => getMes(l.data) === mesAtual);
+  if (p === 'semana') {
+    const sw = getSemana(hoje_);
+    return db.lancamentos.filter(l => getSemana(l.data) === sw);
+  }
+  if (p === 'ano') return db.lancamentos.filter(l => getAno(l.data) === anoAtual);
+  return db.lancamentos;
+}
+
+function renderSocios(p) {
+  const lista = getLancamentosPeriodo(p);
+  const db = getData();
+  const socios = db.config.socios;
+  const lucroTotal = lista.reduce((a,l) => a + l.lucro, 0);
+
+  const periodoLabel = { mes: 'este mês', semana: 'esta semana', ano: 'este ano', total: 'total geral' }[p];
+
+  const colors = ['#7b1fa2','#00838f','#e65100'];
+  const cardClass = ['socio1','socio2','socio3'];
+
+  document.getElementById('socio-cards').innerHTML = socios.map((s,i) => {
+    const val = lucroTotal * s.percentual / 100;
+    return `
+      <div class="socio-item">
+        <div class="socio-nome" style="color:${colors[i]}">${s.nome}</div>
+        <div class="socio-pct">${s.percentual}% do lucro · ${periodoLabel}</div>
+        <div class="socio-valor" style="color:${colors[i]}">${fmt(val)}</div>
+        <div class="socio-mensal">Lucro total: ${fmt(lucroTotal)}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderHistoricoSocios() {
+  const db = getData();
+  const socios = db.config.socios;
+  atualizarThSocios(socios);
+
+  const porMes = {};
+  db.lancamentos.forEach(l => {
+    const mes = getMes(l.data);
+    if (!porMes[mes]) porMes[mes] = 0;
+    porMes[mes] += l.lucro;
+  });
+
+  const meses = Object.keys(porMes).sort().reverse();
+  const tbody = document.getElementById('socios-historico-body');
+
+  if (meses.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="icon">👥</div><p>Nenhum dado ainda</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = meses.map(mes => {
+    const lucro = porMes[mes];
+    const [ano, mn] = mes.split('-');
+    const cols = socios.map(s => `<td>${fmt(lucro * s.percentual / 100)}</td>`).join('');
+    return `<tr><td><strong>${nomeMes(mn)} ${ano}</strong></td><td>${fmt(lucro)}</td>${cols}</tr>`;
+  }).join('');
+}
+
+// =================== DASHBOARD ===================
+window._dashPeriodo = 'mes';
+let charts = {};
+
+function setDashboardPeriodo(p, btn) {
+  window._dashPeriodo = p;
+  document.querySelectorAll('#tab-dashboard .periodo-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDashboard(p);
+}
+
+function renderDashboard(p) {
+  const lista = getLancamentosPeriodo(p);
+  const db = getData();
+  const socios = db.config.socios;
+
+  const totV = lista.reduce((a,l) => a + l.vendas, 0);
+  const totC = lista.reduce((a,l) => a + l.compras, 0);
+  const totL = totV - totC;
+  const margem = totV > 0 ? (totL / totV * 100) : 0;
+
+  const periodoLabel = { mes: 'este mês', semana: 'esta semana', ano: 'este ano', total: 'geral' }[p];
+
+  const colors = ['#7b1fa2','#00838f','#e65100'];
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card vendas">
+      <div class="kpi-label">Vendas · ${periodoLabel}</div>
+      <div class="kpi-value green">${fmt(totV)}</div>
+      <div class="kpi-sub">${lista.length} dias lançados</div>
+    </div>
+    <div class="kpi-card compras">
+      <div class="kpi-label">Compras · ${periodoLabel}</div>
+      <div class="kpi-value red">${fmt(totC)}</div>
+    </div>
+    <div class="kpi-card lucro">
+      <div class="kpi-label">Lucro Líquido · ${periodoLabel}</div>
+      <div class="kpi-value ${totL>=0?'blue':'red'}">${fmt(totL)}</div>
+      <div class="kpi-sub">Margem: ${fmtPct(margem)}</div>
+    </div>
+    ${socios.map((s,i) => `
+    <div class="kpi-card socio${i+1}">
+      <div class="kpi-label">${s.nome} · ${s.percentual}%</div>
+      <div class="kpi-value" style="color:${colors[i]}">${fmt(totL * s.percentual / 100)}</div>
+      <div class="kpi-sub">${periodoLabel}</div>
+    </div>`).join('')}
+  `;
+
+  renderCharts(db.lancamentos);
+}
+
+function renderCharts(lancamentos) {
+  // Últimos 30 dias
+  const sorted = [...lancamentos].sort((a,b) => a.data.localeCompare(b.data));
+  const ultimos = sorted.slice(-30);
+
+  const labels = ultimos.map(l => fmtData(l.data));
+  const vendas = ultimos.map(l => l.vendas);
+  const compras = ultimos.map(l => l.compras);
+  const lucros = ultimos.map(l => l.lucro);
+
+  // Chart 1: Vendas vs Compras
+  destroyChart('chartVendasCompras');
+  const ctx1 = document.getElementById('chartVendasCompras').getContext('2d');
+  charts['chartVendasCompras'] = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Vendas', data: vendas, backgroundColor: 'rgba(46,125,50,0.7)', borderColor: '#2e7d32', borderWidth: 1 },
+        { label: 'Compras', data: compras, backgroundColor: 'rgba(198,40,40,0.7)', borderColor: '#c62828', borderWidth: 1 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true } } }
+  });
+
+  // Chart 2: Categorias de compras
+  const catMap = {};
+  lancamentos.forEach(l => (l.itens||[]).forEach(i => {
+    catMap[i.categoria] = (catMap[i.categoria]||0) + i.valor;
+  }));
+  const catLabels = Object.keys(catMap);
+  const catVals = catLabels.map(c => catMap[c]);
+  const catColors = ['#ff6d00','#7b1fa2','#2e7d32','#1565c0','#c62828','#00838f'];
+
+  destroyChart('chartCategorias');
+  const ctx2 = document.getElementById('chartCategorias').getContext('2d');
+  charts['chartCategorias'] = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels: catLabels.length ? catLabels : ['Sem dados'],
+      datasets: [{ data: catVals.length ? catVals : [1], backgroundColor: catColors }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+  });
+
+  // Chart 3: Lucro diário
+  destroyChart('chartLucro');
+  const ctx3 = document.getElementById('chartLucro').getContext('2d');
+  charts['chartLucro'] = new Chart(ctx3, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Lucro',
+        data: lucros,
+        borderColor: '#1565c0',
+        backgroundColor: 'rgba(21,101,192,0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+  });
+
+  // Chart 4: Margem por mês
+  const porMes = {};
+  lancamentos.forEach(l => {
+    const m = getMes(l.data);
+    if (!porMes[m]) porMes[m] = { v: 0, c: 0 };
+    porMes[m].v += l.vendas;
+    porMes[m].c += l.compras;
+  });
+  const mesKeys = Object.keys(porMes).sort().slice(-12);
+  const mesLabels = mesKeys.map(m => { const [y,mn] = m.split('-'); return nomeMes(mn).substring(0,3)+'/'+y.substring(2); });
+  const margens = mesKeys.map(m => porMes[m].v > 0 ? ((porMes[m].v - porMes[m].c)/porMes[m].v*100).toFixed(1) : 0);
+
+  destroyChart('chartMargem');
+  const ctx4 = document.getElementById('chartMargem').getContext('2d');
+  charts['chartMargem'] = new Chart(ctx4, {
+    type: 'line',
+    data: {
+      labels: mesLabels,
+      datasets: [{
+        label: 'Margem %',
+        data: margens,
+        borderColor: '#e65c00',
+        backgroundColor: 'rgba(230,92,0,0.1)',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+  });
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// =================== EXPORT/IMPORT ===================
+function exportarDados() {
+  const db = getData();
+  const json = JSON.stringify(db, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'lanchonete-backup-' + hoje() + '.json';
+  a.click();
+}
+
+function importarDados(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (!d.lancamentos || !d.config) { alert('Arquivo inválido!'); return; }
+      if (!confirm(`Importar ${d.lancamentos.length} lançamentos? Isso substituirá os dados atuais.`)) return;
+      saveData(d);
+      location.reload();
+    } catch(err) { alert('Erro ao importar: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function limparTodosDados() {
+  if (!confirm('⚠ ATENÇÃO: Isso apagará TODOS os lançamentos permanentemente. Tem certeza?')) return;
+  if (!confirm('Segunda confirmação: apagar todos os dados?')) return;
+  localStorage.removeItem(DB_KEY);
+  location.reload();
+}
+
+// =================== MODAL ===================
+function fecharModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) fecharModalBtn();
+}
+function fecharModalBtn() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+</script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import AppShell from "@/components/AppShell";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -330,21 +331,13 @@ export default function FinanceiroPessoalPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-6 shadow-lg">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push("/dashboard")} className="text-white hover:opacity-70 text-2xl">←</button>
-            <div>
-              <h1 className="text-2xl font-extrabold text-white">👤 Finanças Pessoais</h1>
-              <p className="text-white/70 text-sm">Controle suas receitas, despesas e metas</p>
-            </div>
-          </div>
+    <AppShell>
+    <div className="min-h-full bg-slate-50">
+      <div className="max-w-5xl mx-auto p-6 md:p-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-extrabold text-slate-800">👤 Finanças Pessoais</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Controle suas receitas, despesas, cartões e metas</p>
         </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto p-6">
         {/* Abas */}
         <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map(({ key, label }) => (
@@ -965,5 +958,6 @@ export default function FinanceiroPessoalPage() {
         )}
       </div>
     </div>
+    </AppShell>
   );
 }

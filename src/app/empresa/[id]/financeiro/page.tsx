@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import AppShell from "@/components/AppShell";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -407,7 +408,11 @@ export default function FinanceiroPage() {
     a.click();
   }
 
-  if (!empresa) return <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-400">Carregando...</div>;
+  if (!empresa) return (
+    <AppShell>
+      <div className="flex items-center justify-center h-64 text-slate-400">Carregando...</div>
+    </AppShell>
+  );
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "dashboard", label: "📊 Dashboard" },
@@ -419,24 +424,29 @@ export default function FinanceiroPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* Header */}
-      <div className={`bg-gradient-to-r ${empresa.cor} p-6 shadow-lg`}>
+    <AppShell>
+    <div className="min-h-full bg-slate-50">
+      {/* Header colorido da empresa */}
+      <div className={`bg-gradient-to-r ${empresa.cor} p-5 shadow-md`}>
         <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push(`/empresa/${id}`)} className="text-white hover:opacity-70 text-2xl">←</button>
+          <div className="flex items-center gap-3">
+            <button onClick={() => router.push(`/empresa/${id}`)} className="text-white/70 hover:text-white transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
             <div>
-              <h1 className="text-2xl font-extrabold text-white">💰 Financeiro · {empresa.emoji} {empresa.nome}</h1>
-              {empresa.descricao && <p className="text-white/70 text-sm">{empresa.descricao}</p>}
+              <h1 className="text-xl font-extrabold text-white">💰 Financeiro · {empresa.emoji} {empresa.nome}</h1>
+              {empresa.descricao && <p className="text-white/60 text-xs mt-0.5">{empresa.descricao}</p>}
             </div>
           </div>
-          <button onClick={exportar} className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 py-2 rounded-xl">
+          <button onClick={exportar} className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-4 py-2 rounded-xl border border-white/20">
             ⬇️ Exportar JSON
           </button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="max-w-5xl mx-auto p-6 md:p-8">
         {/* Abas */}
         <div className="flex flex-wrap gap-2 mb-6">
           {TABS.map(({ key, label }) => (
@@ -1144,5 +1154,6 @@ export default function FinanceiroPage() {
         )}
       </div>
     </div>
+    </AppShell>
   );
 }

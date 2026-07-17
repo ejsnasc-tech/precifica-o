@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
+import AppShell from "@/components/AppShell";
 
 interface Empresa { id: number; nome: string; descricao: string; cor: string; emoji: string; }
 interface Config {
@@ -338,25 +339,27 @@ export default function EmpresaPage() {
     if (w) { w.document.write(html); w.document.close(); w.focus(); setTimeout(() => w.print(), 500); }
   }
 
-  if (!empresa || !config) return <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-400">Carregando...</div>;
+  if (!empresa || !config) return (
+    <AppShell>
+      <div className="flex items-center justify-center h-64 text-slate-400">Carregando...</div>
+    </AppShell>
+  );
 
   const funcPorProd = config.funcionarios_qtd > 0 ? config.funcionarios_custo / config.funcionarios_qtd : 0;
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      {/* Header */}
-      <div className={`bg-gradient-to-r ${empresa.cor} p-6 shadow-lg`}>
+    <AppShell>
+    <div className="min-h-full bg-slate-50">
+      {/* Header colorido da empresa */}
+      <div className={`bg-gradient-to-r ${empresa.cor} p-6 shadow-md`}>
         <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <button onClick={() => router.push("/dashboard")} className="text-white hover:opacity-70 text-2xl">←</button>
-            <div>
-              <h1 className="text-3xl font-extrabold text-white">{empresa.emoji} {empresa.nome}</h1>
-              {empresa.descricao && <p className="text-white/80 text-sm">{empresa.descricao}</p>}
-            </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-white">{empresa.emoji} {empresa.nome}</h1>
+            {empresa.descricao && <p className="text-white/70 text-sm mt-0.5">{empresa.descricao}</p>}
           </div>
           <button
             onClick={() => router.push(`/empresa/${id}/financeiro`)}
-            className="bg-white/20 hover:bg-white/30 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
+            className="bg-white/20 hover:bg-white/30 active:bg-white/40 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors border border-white/20"
           >
             💰 Módulo Financeiro
           </button>
@@ -1140,5 +1143,6 @@ export default function EmpresaPage() {
         )}
       </div>
     </div>
+    </AppShell>
   );
 }
