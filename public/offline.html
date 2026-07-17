@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sem conexão — Precificação Pro</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .icon { font-size: 64px; margin-bottom: 20px; }
+    h1 { font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+    p { font-size: 15px; color: #64748b; line-height: 1.6; margin-bottom: 28px; }
+    button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 14px 28px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    button:hover { background: #4338ca; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>Sem conexão</h1>
+    <p>
+      Você está offline. Se acessou o app antes com internet,
+      <strong>volte para a página anterior</strong> — os dados estão salvos no seu dispositivo.
+    </p>
+    <button onclick="history.back()">← Voltar</button>
+  </div>
+</body>
+</html>
