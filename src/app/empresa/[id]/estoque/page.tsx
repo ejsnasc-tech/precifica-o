@@ -19,7 +19,7 @@ type AbaType = "lista" | "novo";
 type TipoMov = "entrada" | "saida" | "ajuste";
 
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const emptyForm = { nome: "", unidade: "un", quantidade_atual: "", quantidade_minima: "", custo_unitario: "", tem_validade: false, dias_alerta: "7" };
+const emptyForm = { nome: "", unidade: "un", quantidade_atual: "", quantidade_minima: "", custo_unitario: "", tem_validade: false, dias_alerta: "7", data_validade_inicial: "" };
 
 function diasParaVencer(dataValidade: string): number {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
@@ -79,9 +79,10 @@ export default function EstoquePage() {
   async function salvar() {
     if (!form.nome.trim()) return;
     setSalvando(true);
+    const qtdAtual = parseFloat(form.quantidade_atual) || 0;
     const body = {
       empresa_id: Number(id), nome: form.nome.trim(), unidade: form.unidade,
-      quantidade_atual: parseFloat(form.quantidade_atual) || 0,
+      quantidade_atual: qtdAtual,
       quantidade_minima: parseFloat(form.quantidade_minima) || 0,
       custo_unitario: parseFloat(form.custo_unitario) || 0,
       tem_validade: form.tem_validade ? 1 : 0,
@@ -90,7 +91,20 @@ export default function EstoquePage() {
     if (editando) {
       await fetch(`/api/estoque/${editando.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
-      await fetch("/api/estoque", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch("/api/estoque", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const created = await res.json() as { id: number };
+      // se tem validade ativa e quantidade inicial > 0, registra o movimento de entrada com a data
+      if (form.tem_validade && qtdAtual > 0) {
+        await fetch("/api/estoque-movimentos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            estoque_id: created.id, tipo: "entrada", quantidade: qtdAtual,
+            observacao: "Estoque inicial",
+            data_validade: form.data_validade_inicial || null,
+          }),
+        });
+      }
     }
     setForm(emptyForm); setEditando(null); setSalvando(false); setAba("lista");
     void load();
@@ -153,6 +167,7 @@ export default function EstoquePage() {
       custo_unitario: String(item.custo_unitario),
       tem_validade: item.tem_validade === 1,
       dias_alerta: String(item.dias_alerta ?? 7),
+      data_validade_inicial: "",
     });
     setAba("novo");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -522,20 +537,43 @@ export default function EstoquePage() {
                   </button>
 
                   {form.tem_validade && (
-                    <div className="mt-4 pt-4 border-t border-purple-200">
-                      <label className="text-sm font-semibold text-purple-800 block mb-1">Alertar quantos dias antes do vencimento?</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number" min="1" max="90"
-                          value={form.dias_alerta}
-                          onChange={(e) => setForm({ ...form, dias_alerta: e.target.value })}
-                          className="w-24 border border-purple-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
-                        />
-                        <span className="text-sm text-purple-700 font-medium">dias antes</span>
+                    <div className="mt-4 pt-4 border-t border-purple-200 space-y-4">
+                      <div>
+                        <label className="text-sm font-semibold text-purple-800 block mb-1">Alertar quantos dias antes do vencimento?</label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number" min="1" max="90"
+                            value={form.dias_alerta}
+                            onChange={(e) => setForm({ ...form, dias_alerta: e.target.value })}
+                            className="w-24 border border-purple-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                          />
+                          <span className="text-sm text-purple-700 font-medium">dias antes do vencimento</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-purple-600 mt-2">
-                        Ex: {form.dias_alerta} dias → alerta aparece quando o produto tiver menos de {form.dias_alerta} dias para vencer
-                      </p>
+
+                      {!editando && parseFloat(form.quantidade_atual) > 0 && (
+                        <div>
+                          <label className="text-sm font-semibold text-purple-800 block mb-1">
+                            Data de validade do estoque inicial <span className="text-purple-400 font-normal">(opcional)</span>
+                          </label>
+                          <input
+                            type="date"
+                            value={form.data_validade_inicial}
+                            onChange={(e) => setForm({ ...form, data_validade_inicial: e.target.value })}
+                            min={new Date().toISOString().split("T")[0]}
+                            className="border border-purple-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                          />
+                          {form.data_validade_inicial && (
+                            <p className="text-xs text-purple-600 mt-1">
+                              Alerta a partir de {(() => {
+                                const d = new Date(form.data_validade_inicial + "T00:00:00");
+                                d.setDate(d.getDate() - (parseInt(form.dias_alerta) || 7));
+                                return d.toLocaleDateString("pt-BR");
+                              })()}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
