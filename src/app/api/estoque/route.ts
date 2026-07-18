@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const session = await getSession(req);
+  const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const empresaId = req.nextUrl.searchParams.get("empresaId");
   if (!empresaId) return NextResponse.json([], { status: 200 });
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSession(req);
+  const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json() as { empresa_id: number; nome: string; unidade: string; quantidade_atual: number; quantidade_minima: number; custo_unitario: number };
   const db = getDB();
