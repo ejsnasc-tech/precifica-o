@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json() as { estoque_id: number; tipo: "entrada" | "saida" | "ajuste"; quantidade: number; observacao?: string };
+  const body = await req.json() as { estoque_id: number; tipo: "entrada" | "saida" | "ajuste"; quantidade: number; observacao?: string; data_validade?: string | null };
   const db = await getDB();
   await db.prepare(
-    "INSERT INTO estoque_movimentos (estoque_id, tipo, quantidade, observacao) VALUES (?, ?, ?, ?)"
-  ).bind(body.estoque_id, body.tipo, body.quantidade, body.observacao ?? null).run();
+    "INSERT INTO estoque_movimentos (estoque_id, tipo, quantidade, observacao, data_validade) VALUES (?, ?, ?, ?, ?)"
+  ).bind(body.estoque_id, body.tipo, body.quantidade, body.observacao ?? null, body.data_validade ?? null).run();
 
   const delta = body.tipo === "saida" ? -body.quantidade : body.quantidade;
   await db.prepare("UPDATE estoque SET quantidade_atual = quantidade_atual + ? WHERE id = ?")

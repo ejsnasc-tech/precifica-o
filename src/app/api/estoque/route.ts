@@ -15,10 +15,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json() as { empresa_id: number; nome: string; unidade: string; quantidade_atual: number; quantidade_minima: number; custo_unitario: number };
+  const body = await req.json() as { empresa_id: number; nome: string; unidade: string; quantidade_atual: number; quantidade_minima: number; custo_unitario: number; tem_validade?: number; dias_alerta?: number };
   const db = await getDB();
   const result = await db.prepare(
-    "INSERT INTO estoque (empresa_id, nome, unidade, quantidade_atual, quantidade_minima, custo_unitario) VALUES (?, ?, ?, ?, ?, ?)"
-  ).bind(body.empresa_id, body.nome, body.unidade ?? "un", body.quantidade_atual ?? 0, body.quantidade_minima ?? 0, body.custo_unitario ?? 0).run();
+    "INSERT INTO estoque (empresa_id, nome, unidade, quantidade_atual, quantidade_minima, custo_unitario, tem_validade, dias_alerta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  ).bind(body.empresa_id, body.nome, body.unidade ?? "un", body.quantidade_atual ?? 0, body.quantidade_minima ?? 0, body.custo_unitario ?? 0, body.tem_validade ?? 0, body.dias_alerta ?? 7).run();
   return NextResponse.json({ id: result.meta.last_row_id }, { status: 201 });
 }

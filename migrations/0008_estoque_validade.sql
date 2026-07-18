@@ -1,0 +1,3 @@
+ALTER TABLE estoque ADD COLUMN tem_validade INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE estoque ADD COLUMN dias_alerta INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE estoque_movimentos ADD COLUMN data_validade TEXT;
