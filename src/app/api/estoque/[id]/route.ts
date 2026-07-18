@@ -7,7 +7,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const body = await req.json() as Partial<{ nome: string; unidade: string; quantidade_atual: number; quantidade_minima: number; custo_unitario: number }>;
-  const db = getDB();
+  const db = await getDB();
   const fields = Object.keys(body).map((k) => `${k} = ?`).join(", ");
   const values = Object.values(body);
   await db.prepare(`UPDATE estoque SET ${fields} WHERE id = ?`).bind(...values, Number(id)).run();
@@ -19,7 +19,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
-  const db = getDB();
+  const db = await getDB();
   await db.prepare("DELETE FROM estoque_movimentos WHERE estoque_id = ?").bind(Number(id)).run();
   await db.prepare("DELETE FROM estoque WHERE id = ?").bind(Number(id)).run();
   return new NextResponse(null, { status: 204 });

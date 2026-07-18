@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const estoqueId = req.nextUrl.searchParams.get("estoqueId");
   if (!estoqueId) return NextResponse.json([]);
-  const db = getDB();
+  const db = await getDB();
   const rows = await db.prepare(
     "SELECT * FROM estoque_movimentos WHERE estoque_id = ? ORDER BY criado_at DESC LIMIT 50"
   ).bind(Number(estoqueId)).all();
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json() as { estoque_id: number; tipo: "entrada" | "saida" | "ajuste"; quantidade: number; observacao?: string };
-  const db = getDB();
+  const db = await getDB();
   await db.prepare(
     "INSERT INTO estoque_movimentos (estoque_id, tipo, quantidade, observacao) VALUES (?, ?, ?, ?)"
   ).bind(body.estoque_id, body.tipo, body.quantidade, body.observacao ?? null).run();
