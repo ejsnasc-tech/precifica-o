@@ -74,23 +74,6 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Card Finanças Pessoais */}
-        <div
-          onClick={() => router.push("/financeiro-pessoal")}
-          className="mb-8 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-2xl p-5 shadow-lg shadow-indigo-200 cursor-pointer hover:shadow-xl hover:shadow-indigo-200 hover:scale-[1.01] transition-all flex items-center justify-between"
-        >
-          <div className="text-white">
-            <p className="text-xs font-semibold uppercase tracking-widest opacity-60">Módulo</p>
-            <p className="text-xl font-extrabold mt-0.5">👤 Finanças Pessoais</p>
-            <p className="text-sm opacity-60 mt-0.5">Receitas, despesas, cartões e metas pessoais</p>
-          </div>
-          <div className="text-white/50">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </div>
-
         {/* Grid de empresas */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
