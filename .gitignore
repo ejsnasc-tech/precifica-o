@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cloudflare / opennext build artifacts
+/.open-next/
+/.wrangler/
+/wrangler.sqlite
+
+# local db
+*.db
+*.db-shm
+*.db-wal
+
+# misc arquivos locais
+dashboard-lanchonete.html
+scripts/gen-icons.mjs
