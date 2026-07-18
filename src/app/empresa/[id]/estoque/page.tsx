@@ -551,7 +551,7 @@ export default function EstoquePage() {
                         </div>
                       </div>
 
-                      {!editando && parseFloat(form.quantidade_atual) > 0 && (
+                      {!editando && (
                         <div>
                           <label className="text-sm font-semibold text-purple-800 block mb-1">
                             Data de validade do estoque inicial <span className="text-purple-400 font-normal">(opcional)</span>
