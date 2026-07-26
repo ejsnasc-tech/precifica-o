@@ -6,6 +6,10 @@
   "assets": {
     "directory": ".open-next/assets"
   },
+  "routes": [
+    { "pattern": "topprecificacao.com.br", "custom_domain": true },
+    { "pattern": "www.topprecificacao.com.br", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
