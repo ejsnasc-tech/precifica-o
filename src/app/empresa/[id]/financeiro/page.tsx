@@ -29,7 +29,6 @@ type Tab = "dashboard" | "lancamentos" | "semanal" | "mensal" | "anual" | "socio
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const CATEGORIAS = ["insumos", "embalagens", "limpeza", "pessoal", "equipamentos", "outros"] as const;
-type Categoria = typeof CATEGORIAS[number];
 
 const CAT_LABEL: Record<string, string> = {
   insumos: "Insumos", embalagens: "Embalagens", limpeza: "Limpeza",
@@ -40,9 +39,6 @@ const CAT_COLOR: Record<string, string> = {
   insumos: "#10b981", embalagens: "#3b82f6", limpeza: "#8b5cf6",
   pessoal: "#f97316", equipamentos: "#06b6d4", outros: "#94a3b8",
 };
-
-const CATEGORIAS_VENDA = ["sucos", "vitaminas", "lanches", "delivery", "outros"] as const;
-type CategoriaVenda = typeof CATEGORIAS_VENDA[number];
 
 const CAT_VENDA_LABEL: Record<string, string> = {
   sucos: "Sucos", vitaminas: "Vitaminas", lanches: "Lanches",
@@ -117,7 +113,7 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   const R = 48, r = 28, cx = 64, cy = 64;
 
   const filtered = data.filter((d) => d.value > 0);
-  const startAngles = filtered.reduce<number[]>((acc, _d) => {
+  const startAngles = filtered.reduce<number[]>((acc) => {
     const prev = acc.length > 0 ? acc[acc.length - 1] : -Math.PI / 2;
     const prevSweep = acc.length > 0 ? (filtered[acc.length - 1].value / total) * Math.PI * 2 : 0;
     return [...acc, prev + (acc.length === 0 ? 0 : prevSweep)];

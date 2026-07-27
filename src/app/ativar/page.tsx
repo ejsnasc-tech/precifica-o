@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function AtivarPage() {
   const [codigo, setCodigo] = useState("");
@@ -70,9 +71,9 @@ export default function AtivarPage() {
 
         <p className="text-center text-xs text-gray-400 mt-6">
           Ainda não tem acesso?{" "}
-          <a href="/" className="text-indigo-600 font-semibold hover:underline">
+          <Link href="/" className="text-indigo-600 font-semibold hover:underline">
             Comprar agora
-          </a>
+          </Link>
         </p>
       </div>
     </div>
