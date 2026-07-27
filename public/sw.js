@@ -1,5 +1,5 @@
-const CACHE_STATIC = "pp-static-v1";
-const CACHE_API = "pp-api-v1";
+const CACHE_STATIC = "pp-static-v2";
+const CACHE_API = "pp-api-v2";
 
 const PRECACHE_URLS = [
   "/",
@@ -15,7 +15,7 @@ self.addEventListener("install", (e) => {
       Promise.allSettled(PRECACHE_URLS.map((u) => c.add(u)))
     )
   );
-  self.skipWaiting();
+  // NÃO chama skipWaiting() aqui — aguarda o usuário confirmar a atualização
 });
 
 // ── Activate: remove caches antigos ─────────────────────────────────────────
@@ -30,6 +30,13 @@ self.addEventListener("activate", (e) => {
     )
   );
   self.clients.claim();
+});
+
+// ── Mensagem: permite que a página dispare skipWaiting() ─────────────────────
+self.addEventListener("message", (e) => {
+  if (e.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // ── Fetch: estratégia por tipo de recurso ────────────────────────────────────

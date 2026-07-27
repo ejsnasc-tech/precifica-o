@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -13,14 +13,40 @@ export default function PWAManager() {
   const [showOfflineBanner, setShowOfflineBanner] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const waitingWorkerRef = useRef<ServiceWorker | null>(null);
 
   useEffect(() => {
-    // Registra o service worker
+    // Registra o service worker e detecta atualizações
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/" })
-        .then((reg) => console.log("[PWA] SW registrado:", reg.scope))
+        .then((reg) => {
+          // Se já existe um SW esperando (ex: usuário abriu o app depois do deploy)
+          if (reg.waiting) {
+            waitingWorkerRef.current = reg.waiting;
+            setUpdateAvailable(true);
+          }
+
+          // Detecta novo SW sendo instalado em tempo real
+          reg.addEventListener("updatefound", () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener("statechange", () => {
+              // "installed" + controller ativo = nova versão esperando para assumir
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                waitingWorkerRef.current = newWorker;
+                setUpdateAvailable(true);
+              }
+            });
+          });
+        })
         .catch((err) => console.warn("[PWA] SW erro:", err));
+
+      // Quando o SW novo assumir o controle, recarrega a página para aplicar
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        window.location.reload();
+      });
     }
 
     // Online/offline
@@ -38,7 +64,6 @@ export default function PWAManager() {
     const onBeforeInstall = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e as BeforeInstallPromptEvent);
-      // Só mostra o banner se não foi dispensado antes
       const dismissed = localStorage.getItem("pwa-install-dismissed");
       if (!dismissed && !installed) setShowInstallBanner(true);
     };
@@ -50,6 +75,12 @@ export default function PWAManager() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
     };
   }, [installed]);
+
+  const handleUpdate = () => {
+    if (!waitingWorkerRef.current) return;
+    // Manda o SW novo pular a fila e assumir — o listener de controllerchange recarrega
+    waitingWorkerRef.current.postMessage({ type: "SKIP_WAITING" });
+  };
 
   const handleInstall = async () => {
     if (!installPrompt) return;
@@ -67,7 +98,7 @@ export default function PWAManager() {
 
   return (
     <>
-      {/* Banner offline */}
+      {/* Banner offline / online */}
       <div
         className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ${showOfflineBanner ? "translate-y-0" : "-translate-y-full"}`}
       >
@@ -86,8 +117,29 @@ export default function PWAManager() {
         </div>
       </div>
 
-      {/* Banner de instalação */}
-      {showInstallBanner && !installed && (
+      {/* Banner de atualização disponível */}
+      {updateAvailable && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96">
+          <div className="bg-indigo-600 rounded-2xl shadow-2xl p-4 flex items-center gap-4">
+            <div className="text-2xl">🚀</div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-white text-sm">Nova versão disponível</p>
+              <p className="text-indigo-200 text-xs mt-0.5">
+                Melhorias e correções prontas para você.
+              </p>
+            </div>
+            <button
+              onClick={handleUpdate}
+              className="shrink-0 bg-white text-indigo-700 font-bold text-xs px-4 py-2 rounded-xl hover:bg-indigo-50 transition-colors"
+            >
+              Atualizar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Banner de instalação (só se não tiver update pendente) */}
+      {showInstallBanner && !installed && !updateAvailable && (
         <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 flex items-start gap-3">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0 text-white font-extrabold text-lg">
