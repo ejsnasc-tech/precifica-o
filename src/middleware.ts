@@ -4,9 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 const PUBLIC = [
   "/",
   "/ativar",
+  "/admin",
   "/privacidade",
   "/api/codigo/verificar",
   "/api/pagamento",
+  "/api/admin",
 ];
 
 export async function middleware(req: NextRequest) {
