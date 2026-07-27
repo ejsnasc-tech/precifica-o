@@ -14,6 +14,9 @@ interface Lancamento {
   descricao: string;
   valor: number;
   obs: string;
+  pagamento?: string;
+  cartao_id?: number;
+  parcelas?: number;
 }
 
 interface Cartao {
@@ -49,7 +52,7 @@ interface Meta {
 
 type Tab = "dashboard" | "lancamentos" | "cartoes" | "metas" | "relatorios";
 type TipoLanc = "receita" | "despesa";
-type LancForm = { data: string; tipo: TipoLanc; categoria: string; descricao: string; valor: string; obs: string };
+type LancForm = { data: string; tipo: TipoLanc; categoria: string; descricao: string; valor: string; obs: string; pagamento: "avista" | "cartao"; cartao_id: string; parcelas: string };
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
 
@@ -128,7 +131,7 @@ export default function FinanceiroPessoalPage() {
   const [metas, setMetas] = useState<Meta[]>([]);
 
   // Form lançamento
-  const emptyLanc: LancForm = { data: hoje(), tipo: "despesa", categoria: "", descricao: "", valor: "", obs: "" };
+  const emptyLanc: LancForm = { data: hoje(), tipo: "despesa", categoria: "", descricao: "", valor: "", obs: "", pagamento: "avista", cartao_id: "", parcelas: "1" };
   const [formLanc, setFormLanc] = useState<LancForm>(emptyLanc);
   const [editandoLancId, setEditandoLancId] = useState<number | null>(null);
   const [salvandoLanc, setSalvandoLanc] = useState(false);
@@ -203,14 +206,41 @@ export default function FinanceiroPessoalPage() {
   async function salvarLanc() {
     const v = parseFloat(formLanc.valor);
     if (!formLanc.descricao.trim() || isNaN(v) || v <= 0 || !formLanc.data) return;
+    const ehCartao = formLanc.tipo === "despesa" && formLanc.pagamento === "cartao";
+    if (ehCartao && !formLanc.cartao_id) return;
     setSalvandoLanc(true);
     const db = getLocalDB();
-    const dados = { ...formLanc, valor: v, categoria: formLanc.categoria || formLanc.tipo, criado_em: new Date().toISOString() };
+
+    const pagamento = formLanc.tipo === "despesa" ? formLanc.pagamento : "avista";
+    const dados: import("@/lib/localdb").LancamentoPF = {
+      data: formLanc.data,
+      tipo: formLanc.tipo,
+      categoria: formLanc.categoria || formLanc.tipo,
+      descricao: formLanc.descricao,
+      valor: v,
+      obs: formLanc.obs,
+      criado_em: new Date().toISOString(),
+      pagamento,
+      cartao_id: ehCartao ? Number(formLanc.cartao_id) : undefined,
+      parcelas: ehCartao ? Number(formLanc.parcelas) || 1 : undefined,
+    };
 
     if (editandoLancId !== null) {
       await db.pf_lancamentos.update(editandoLancId, dados);
     } else {
-      await db.pf_lancamentos.add(dados as import("@/lib/localdb").LancamentoPF);
+      await db.pf_lancamentos.add(dados);
+      // Criar lançamento no cartão automaticamente (apenas no cadastro)
+      if (ehCartao) {
+        await db.pf_cartao_lancamentos.add({
+          cartao_id: Number(formLanc.cartao_id),
+          data: formLanc.data,
+          descricao: formLanc.descricao,
+          categoria: formLanc.categoria || "despesa",
+          valor_total: v,
+          parcelas: Number(formLanc.parcelas) || 1,
+          criado_em: new Date().toISOString(),
+        });
+      }
     }
 
     setFormLanc(emptyLanc);
@@ -227,7 +257,13 @@ export default function FinanceiroPessoalPage() {
   }
 
   function editarLanc(l: Lancamento) {
-    setFormLanc({ data: l.data, tipo: l.tipo, categoria: l.categoria, descricao: l.descricao, valor: String(l.valor), obs: l.obs });
+    setFormLanc({
+      data: l.data, tipo: l.tipo, categoria: l.categoria, descricao: l.descricao,
+      valor: String(l.valor), obs: l.obs,
+      pagamento: (l.pagamento === "cartao" ? "cartao" : "avista"),
+      cartao_id: l.cartao_id ? String(l.cartao_id) : "",
+      parcelas: l.parcelas ? String(l.parcelas) : "1",
+    });
     setEditandoLancId(l.id);
     setAba("lancamentos");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -443,7 +479,7 @@ export default function FinanceiroPessoalPage() {
               {/* Tipo */}
               <div className="flex gap-3 mb-4">
                 {(["receita", "despesa"] as const).map((t) => (
-                  <button key={t} onClick={() => setFormLanc({ ...formLanc, tipo: t })}
+                  <button key={t} onClick={() => setFormLanc({ ...formLanc, tipo: t, pagamento: "avista" })}
                     className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-colors ${formLanc.tipo === t
                       ? t === "receita" ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
                       : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
@@ -451,6 +487,56 @@ export default function FinanceiroPessoalPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Forma de pagamento (só em despesas) */}
+              {formLanc.tipo === "despesa" && (
+                <div className="mb-4">
+                  <label className="text-sm text-slate-600 block mb-1">Forma de pagamento</label>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setFormLanc({ ...formLanc, pagamento: "avista", cartao_id: "", parcelas: "1" })}
+                      className={`flex-1 py-2 rounded-xl font-semibold text-sm transition-colors ${formLanc.pagamento === "avista" ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                      💵 À vista
+                    </button>
+                    <button
+                      onClick={() => setFormLanc({ ...formLanc, pagamento: "cartao" })}
+                      disabled={cartoes.length === 0}
+                      className={`flex-1 py-2 rounded-xl font-semibold text-sm transition-colors disabled:opacity-40 ${formLanc.pagamento === "cartao" ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}>
+                      💳 Cartão de crédito
+                    </button>
+                  </div>
+                  {cartoes.length === 0 && (
+                    <p className="text-xs text-slate-400 mt-1.5">Cadastre um cartão na aba Cartões para usar esta opção.</p>
+                  )}
+                </div>
+              )}
+
+              {/* Cartão + parcelas */}
+              {formLanc.tipo === "despesa" && formLanc.pagamento === "cartao" && (
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-sm text-slate-600 block mb-1">Cartão</label>
+                    <select value={formLanc.cartao_id} onChange={(e) => setFormLanc({ ...formLanc, cartao_id: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                      <option value="">Selecione...</option>
+                      {cartoes.map((c) => (
+                        <option key={c.id} value={String(c.id)}>{c.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 block mb-1">Parcelas</label>
+                    <select value={formLanc.parcelas} onChange={(e) => setFormLanc({ ...formLanc, parcelas: e.target.value })}
+                      className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 bg-white">
+                      {Array.from({ length: 24 }, (_, i) => i + 1).map((n) => {
+                        const v = parseFloat(formLanc.valor);
+                        const parcelaStr = !isNaN(v) && v > 0 ? ` · ${(v / n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}/mês` : "";
+                        return <option key={n} value={String(n)}>{n}x{parcelaStr}</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
@@ -540,7 +626,17 @@ export default function FinanceiroPessoalPage() {
                       <tr key={l.id} className="hover:bg-slate-50">
                         <td className="px-5 py-3 text-slate-500 text-xs">{l.data.split("-").reverse().join("/")}</td>
                         <td className="px-5 py-3 font-medium text-slate-700">
-                          {l.tipo === "receita" ? "💚" : "🔴"} {l.descricao}
+                          {l.tipo === "receita" ? "💚" : l.pagamento === "cartao" ? "💳" : "🔴"} {l.descricao}
+                          {l.pagamento === "cartao" && l.parcelas && l.parcelas > 1 && (
+                            <span className="text-xs bg-violet-100 text-violet-700 rounded-md px-1.5 py-0.5 ml-1.5 font-semibold">
+                              {l.parcelas}x · {fmt(l.valor / l.parcelas)}/mês
+                            </span>
+                          )}
+                          {l.pagamento === "cartao" && l.cartao_id && (
+                            <span className="text-xs text-slate-400 ml-1.5">
+                              {cartoes.find((c) => c.id === l.cartao_id)?.nome ?? ""}
+                            </span>
+                          )}
                           {l.obs && <span className="text-xs text-slate-400 ml-2">· {l.obs}</span>}
                         </td>
                         <td className="px-5 py-3 text-slate-500 text-xs">{l.categoria}</td>

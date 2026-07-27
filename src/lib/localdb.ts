@@ -116,6 +116,9 @@ export interface LancamentoPF {
   valor: number;
   obs: string;
   criado_em: string;
+  pagamento?: string;
+  cartao_id?: number;
+  parcelas?: number;
 }
 
 export interface CartaoPF {
