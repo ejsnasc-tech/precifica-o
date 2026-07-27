@@ -12,9 +12,12 @@ async function sign(payload: string, secret: string): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
-    const { codigo } = await req.json() as { codigo?: string };
+    const { codigo, nome, email } = await req.json() as { codigo?: string; nome?: string; email?: string };
     if (!codigo || typeof codigo !== "string") {
       return NextResponse.json({ erro: "Código inválido." }, { status: 400 });
+    }
+    if (!email || !email.includes("@")) {
+      return NextResponse.json({ erro: "E-mail obrigatório." }, { status: 400 });
     }
 
     const code = codigo.toUpperCase().trim();
@@ -34,8 +37,8 @@ export async function POST(req: NextRequest) {
     }
 
     await db
-      .prepare("UPDATE codigos_acesso SET usado = 1, usado_em = datetime('now') WHERE id = ?")
-      .bind(row.id)
+      .prepare("UPDATE codigos_acesso SET usado = 1, usado_em = datetime('now'), nome_cliente = ?, email_cliente = ? WHERE id = ?")
+      .bind(nome?.trim() || null, email.trim().toLowerCase(), row.id)
       .run();
 
     // Payload do cookie inclui o prazo para o middleware verificar sem consultar o banco
