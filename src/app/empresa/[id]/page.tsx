@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
-
-interface Empresa { id: number; nome: string; descricao: string; cor: string; emoji: string; }
+import { getLocalDB, type Empresa } from "@/lib/localdb";
 
 const MODULOS = [
   {
@@ -15,7 +14,6 @@ const MODULOS = [
     gradient: "from-orange-500 to-red-500",
     shadow: "shadow-orange-200",
     textColor: "text-orange-600",
-    bgLight: "bg-orange-50",
   },
   {
     key: "financeiro",
@@ -25,7 +23,6 @@ const MODULOS = [
     gradient: "from-blue-500 to-indigo-600",
     shadow: "shadow-blue-200",
     textColor: "text-blue-600",
-    bgLight: "bg-blue-50",
   },
   {
     key: "estoque",
@@ -35,7 +32,6 @@ const MODULOS = [
     gradient: "from-emerald-500 to-teal-600",
     shadow: "shadow-emerald-200",
     textColor: "text-emerald-600",
-    bgLight: "bg-emerald-50",
   },
 ];
 
@@ -45,10 +41,8 @@ export default function EmpresaHubPage() {
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/empresas");
-    if (res.status === 401) { router.push("/login"); return; }
-    const empresas = await res.json() as Empresa[];
-    const e = empresas.find((x) => x.id === Number(id));
+    const db = getLocalDB();
+    const e = await db.empresas.get(Number(id));
     if (!e) { router.push("/dashboard"); return; }
     setEmpresa(e);
   }, [id, router]);
@@ -64,7 +58,6 @@ export default function EmpresaHubPage() {
   return (
     <AppShell>
       <div className="min-h-full bg-slate-50">
-        {/* Header da empresa */}
         <div className={`bg-gradient-to-r ${empresa.cor} px-6 py-8 shadow-md`}>
           <div className="max-w-4xl mx-auto">
             <p className="text-white/60 text-sm font-medium mb-1">Empresa</p>
@@ -73,7 +66,6 @@ export default function EmpresaHubPage() {
           </div>
         </div>
 
-        {/* Módulos */}
         <div className="max-w-4xl mx-auto p-6 md:p-8">
           <p className="text-slate-500 text-sm font-semibold uppercase tracking-wider mb-5">Módulos disponíveis</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

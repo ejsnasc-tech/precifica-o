@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
 
-const PUBLIC = ["/login", "/cadastro", "/api/auth/login", "/api/auth/register"];
+// Rotas que não precisam de licença
+const PUBLIC = [
+  "/",
+  "/ativar",
+  "/privacidade",
+  "/api/codigo/verificar",
+  "/api/pagamento",
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const isPublic = PUBLIC.some((p) => pathname.startsWith(p));
+  const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
+
   if (isPublic) return NextResponse.next();
 
-  const token = req.cookies.get("pp_token")?.value;
-  if (!token || !(await verifyToken(token))) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  // Rotas de API internas e assets do Next.js passam direto
+  if (pathname.startsWith("/_next") || pathname.startsWith("/api/") || pathname.includes(".")) {
+    return NextResponse.next();
+  }
+
+  // Verificação de licença via cookie (setado pelo /ativar após validar o código)
+  const licenca = req.cookies.get("pp_licenca")?.value;
+  if (!licenca || licenca !== "ok") {
+    return NextResponse.redirect(new URL("/ativar", req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js).*)"],
 };

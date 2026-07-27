@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import EmpresaCard from "@/components/EmpresaCard";
 import EmpresaModal from "@/components/EmpresaModal";
-
-interface Empresa {
-  id: number;
-  nome: string;
-  descricao: string;
-  cor: string;
-  emoji: string;
-}
+import { getLocalDB, type Empresa } from "@/lib/localdb";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -23,39 +16,50 @@ export default function DashboardPage() {
 
   const loadEmpresas = useCallback(async () => {
     try {
-      const res = await fetch("/api/empresas");
-      if (res.status === 401) { router.push("/login"); return; }
-      setEmpresas(await res.json() as Empresa[]);
+      const db = getLocalDB();
+      const lista = await db.empresas.orderBy("criado_em").reverse().toArray();
+      setEmpresas(lista);
     } catch { /* ignore */ }
     finally { setLoading(false); }
-  }, [router]);
+  }, []);
 
   useEffect(() => { void loadEmpresas(); }, [loadEmpresas]);
 
-  const handleSave = async (data: Omit<Empresa, "id">) => {
-    if (editando) {
-      await fetch(`/api/empresas/${editando.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
-      });
+  const handleSave = async (data: { nome: string; descricao: string; cor: string; emoji: string }) => {
+    const db = getLocalDB();
+    if (editando?.id) {
+      await db.empresas.update(editando.id, data);
     } else {
-      await fetch("/api/empresas", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
-      });
+      await db.empresas.add({ ...data, criado_em: new Date().toISOString() });
     }
-    setShowModal(false); setEditando(null);
+    setShowModal(false);
+    setEditando(null);
     void loadEmpresas();
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm("Excluir esta empresa e todos os seus dados?")) return;
-    await fetch(`/api/empresas/${id}`, { method: "DELETE" });
+    const db = getLocalDB();
+    // Cascata manual
+    const produtos = await db.produtos.where("empresa_id").equals(id).toArray();
+    for (const p of produtos) {
+      if (p.id) await db.ingredientes.where("produto_id").equals(p.id).delete();
+    }
+    await db.produtos.where("empresa_id").equals(id).delete();
+    await db.gastos_variaveis.where("empresa_id").equals(id).delete();
+    await db.catalogo_ingredientes.where("empresa_id").equals(id).delete();
+    await db.lancamentos.where("empresa_id").equals(id).delete();
+    await db.socios.where("empresa_id").equals(id).delete();
+    await db.cargos_funcionarios.where("empresa_id").equals(id).delete();
+    await db.estoque.where("empresa_id").equals(id).delete();
+    await db.config_empresa.where("empresa_id").equals(id).delete();
+    await db.empresas.delete(id);
     void loadEmpresas();
   };
 
   return (
     <AppShell>
       <div className="p-6 md:p-8 max-w-5xl mx-auto">
-        {/* Page header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-800">Minhas Empresas</h1>
@@ -74,7 +78,6 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Grid de empresas */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
@@ -98,10 +101,10 @@ export default function DashboardPage() {
             {empresas.map((e) => (
               <EmpresaCard
                 key={e.id}
-                empresa={e}
+                empresa={e as Empresa & { id: number }}
                 onClick={() => router.push(`/empresa/${e.id}`)}
                 onEdit={() => { setEditando(e); setShowModal(true); }}
-                onDelete={() => handleDelete(e.id)}
+                onDelete={() => handleDelete(e.id!)}
               />
             ))}
           </div>

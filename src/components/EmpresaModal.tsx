@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 interface Empresa {
-  id: number;
+  id?: number;
   nome: string;
   descricao: string;
   cor: string;
@@ -13,7 +13,7 @@ interface Empresa {
 interface Props {
   inicial: Empresa | null;
   onClose: () => void;
-  onSave: (data: Omit<Empresa, "id">) => void;
+  onSave: (data: Omit<Empresa, "id">) => void | Promise<void>;
 }
 
 const EMOJIS = ["🏪", "🍔", "🍕", "🌮", "🍰", "☕", "🛒", "💇", "💅", "🧴", "👗", "🎨", "🔧", "📦", "🏋️", "🌿", "🐾", "📚"];

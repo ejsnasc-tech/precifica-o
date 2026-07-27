@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { getLocalDB } from "@/lib/localdb";
 
 interface Empresa { id: number; nome: string; descricao: string; cor: string; emoji: string; }
 interface Config {
@@ -117,23 +118,22 @@ export default function PrecificacaoPage() {
   const localId = useRef(0);
 
   const load = useCallback(async () => {
-    const [eRes, cRes, pRes, gRes, catRes] = await Promise.all([
-      fetch("/api/empresas"),
-      fetch(`/api/configuracoes/${id}`),
-      fetch(`/api/produtos?empresaId=${id}`),
-      fetch(`/api/gastos-variaveis?empresaId=${id}`),
-      fetch(`/api/catalogo-ingredientes?empresaId=${id}`),
-    ]);
-    if (eRes.status === 401) { router.push("/login"); return; }
-    const empresas = await eRes.json() as Empresa[];
-    const e = empresas.find((x) => x.id === Number(id));
+    const db = getLocalDB();
+    const e = await db.empresas.get(Number(id));
     if (!e) { router.push("/dashboard"); return; }
-    setEmpresa(e);
-    const c = await cRes.json() as Config;
+    setEmpresa(e as Empresa);
+    const cfgRaw = await db.config_empresa.where("empresa_id").equals(Number(id)).first();
+    const c: Config = cfgRaw ? (cfgRaw as unknown as Config) : {
+      regime: "mei", anexo: "I", aliquota_custom: 0,
+      taxa_debito: 2, taxa_credito: 3, taxa_pix: 0.5, taxa_dinheiro: 0,
+      funcionarios_custo: 0, funcionarios_qtd: 0,
+      gastos_variaveis: 0, gastos_variaveis_tipo: "percent",
+      perdas_pct: 5,
+    };
     setConfig(c); setCfgForm(c);
-    setProdutos(await pRes.json() as Produto[]);
-    setGastosItens(await gRes.json() as GastoItem[]);
-    setCatalogo(await catRes.json() as CatalogoItem[]);
+    setProdutos(await db.produtos.where("empresa_id").equals(Number(id)).toArray() as unknown as Produto[]);
+    setGastosItens(await db.gastos_variaveis.where("empresa_id").equals(Number(id)).toArray() as unknown as GastoItem[]);
+    setCatalogo(await db.catalogo_ingredientes.where("empresa_id").equals(Number(id)).toArray() as unknown as CatalogoItem[]);
   }, [id, router]);
 
   useEffect(() => { void load(); }, [load]);
@@ -187,15 +187,15 @@ export default function PrecificacaoPage() {
   async function salvarProduto() {
     if (!nomeProd.trim()) return;
     setSalvando(true);
+    const db = getLocalDB();
     const margemFinal = Math.round(margemEfetiva * 10) / 10;
     if (editandoProduto) {
-      await fetch(`/api/produtos/${editandoProduto.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: nomeProd, margem: margemFinal }) });
-      for (const ing of editandoProduto.ingredientes ?? []) await fetch(`/api/ingredientes/${ing.id}`, { method: "DELETE" });
-      for (const ing of ings) await fetch("/api/ingredientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ produto_id: editandoProduto.id, nome: ing.nome, quantidade: ing.quantidade, unidade: ing.unidade, custo_por_unidade: ing.custo_por_unidade }) });
+      await db.produtos.update(editandoProduto.id, { nome: nomeProd, margem: margemFinal });
+      await db.ingredientes.where("produto_id").equals(editandoProduto.id).delete();
+      for (const ing of ings) await db.ingredientes.add({ produto_id: editandoProduto.id, nome: ing.nome, quantidade: ing.quantidade, unidade: ing.unidade, custo_por_unidade: ing.custo_por_unidade });
     } else {
-      const res = await fetch("/api/produtos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ empresa_id: Number(id), nome: nomeProd, margem: margemFinal }) });
-      const prod = await res.json() as Produto;
-      for (const ing of ings) await fetch("/api/ingredientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ produto_id: prod.id, nome: ing.nome, quantidade: ing.quantidade, unidade: ing.unidade, custo_por_unidade: ing.custo_por_unidade }) });
+      const prodId = await db.produtos.add({ empresa_id: Number(id), nome: nomeProd, margem: margemFinal, criado_em: new Date().toISOString() });
+      for (const ing of ings) await db.ingredientes.add({ produto_id: Number(prodId), nome: ing.nome, quantidade: ing.quantidade, unidade: ing.unidade, custo_por_unidade: ing.custo_por_unidade });
     }
     limparForm(); setSalvando(false); setMsgSalvo(true);
     setTimeout(() => setMsgSalvo(false), 3000);
@@ -203,44 +203,55 @@ export default function PrecificacaoPage() {
   }
 
   async function iniciarEdicao(p: Produto) {
-    const res = await fetch(`/api/produtos/${p.id}`);
-    const detalhe = await res.json() as Produto;
+    const db = getLocalDB();
+    const ingsList = await db.ingredientes.where("produto_id").equals(p.id).toArray() as unknown as Ingrediente[];
+    const detalhe = { ...p, ingredientes: ingsList };
     setEditandoProduto(detalhe); setNomeProd(detalhe.nome); setMargem(detalhe.margem);
     setModoCalc("margem"); setPrecoVenda("");
-    setIngs((detalhe.ingredientes ?? []).map((i) => ({ ...i, localId: localId.current++ })));
+    setIngs(ingsList.map((i) => ({ ...i, localId: localId.current++ })));
     setAba("form"); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function deletarProduto(prodId: number) {
     if (!confirm("Excluir este produto?")) return;
-    await fetch(`/api/produtos/${prodId}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.ingredientes.where("produto_id").equals(prodId).delete();
+    await db.produtos.delete(prodId);
     if (prodDetail?.id === prodId) setProdDetail(null);
     void load();
   }
 
   async function loadProdDetail(p: Produto) {
-    const res = await fetch(`/api/produtos/${p.id}`);
-    setProdDetail(await res.json() as Produto);
+    const db = getLocalDB();
+    const ingsList = await db.ingredientes.where("produto_id").equals(p.id).toArray() as unknown as Ingrediente[];
+    setProdDetail({ ...p, ingredientes: ingsList });
   }
 
   async function addIngProd() {
     if (!prodDetail || !novoIngProd.nome.trim()) return;
-    await fetch("/api/ingredientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ produto_id: prodDetail.id, nome: novoIngProd.nome, quantidade: parseFloat(novoIngProd.quantidade), unidade: novoIngProd.unidade, custo_por_unidade: parseFloat(novoIngProd.custo_por_unidade) }) });
+    const db = getLocalDB();
+    await db.ingredientes.add({ produto_id: prodDetail.id, nome: novoIngProd.nome, quantidade: parseFloat(novoIngProd.quantidade), unidade: novoIngProd.unidade, custo_por_unidade: parseFloat(novoIngProd.custo_por_unidade) });
     setNovoIngProd({ nome: "", quantidade: "0", unidade: "kg", custo_por_unidade: "0" });
     void loadProdDetail(prodDetail);
   }
 
   async function delIngProd(ingId: number) {
-    await fetch(`/api/ingredientes/${ingId}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.ingredientes.delete(ingId);
     if (prodDetail) void loadProdDetail(prodDetail);
   }
 
   async function salvarConfig() {
     if (!cfgForm) return;
     setSalvandoCfg(true);
-    const res = await fetch(`/api/configuracoes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfgForm) });
-    const c = await res.json() as Config;
-    setConfig(c); setCfgForm(c); setSalvandoCfg(false);
+    const db = getLocalDB();
+    const existing = await db.config_empresa.where("empresa_id").equals(Number(id)).first();
+    if (existing?.id) {
+      await db.config_empresa.update(existing.id, { ...cfgForm, empresa_id: Number(id) });
+    } else {
+      await db.config_empresa.add({ ...cfgForm as unknown as import("@/lib/localdb").ConfigEmpresa, empresa_id: Number(id) });
+    }
+    setConfig(cfgForm); setSalvandoCfg(false);
   }
 
   function gerarPDF(p?: Produto & { ingredientes: Ingrediente[] }) {
@@ -618,7 +629,8 @@ export default function PrecificacaoPage() {
               </div>
               <button onClick={async () => {
                 if (!novoCat.nome.trim() || !novoCat.custo_por_unidade) return;
-                await fetch("/api/catalogo-ingredientes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ empresa_id: Number(id), nome: novoCat.nome.trim(), unidade: novoCat.unidade, custo_por_unidade: parseFloat(novoCat.custo_por_unidade) }) });
+                const db = getLocalDB();
+                await db.catalogo_ingredientes.add({ empresa_id: Number(id), nome: novoCat.nome.trim(), unidade: novoCat.unidade, custo_por_unidade: parseFloat(novoCat.custo_por_unidade) });
                 setNovoCat({ nome: "", unidade: "kg", custo_por_unidade: "" }); void load();
               }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded-xl text-sm transition-colors">+ Adicionar ao catálogo</button>
             </div>
@@ -645,7 +657,7 @@ export default function PrecificacaoPage() {
                             <td className="px-5 py-3 text-right"><input type="number" step="0.01" value={editandoCat.custo} onChange={(e) => setEditandoCat({ ...editandoCat, custo: e.target.value })} className="w-28 border border-blue-300 rounded-lg px-2 py-1 text-sm text-right" /></td>
                             <td className="px-5 py-3 text-right">
                               <div className="flex gap-2 justify-end">
-                                <button onClick={async () => { await fetch(`/api/catalogo-ingredientes/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: editandoCat.nome, unidade: editandoCat.unidade, custo_por_unidade: parseFloat(editandoCat.custo) || 0 }) }); setEditandoCat(null); void load(); }} className="bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-lg">Salvar</button>
+                                <button onClick={async () => { const db = getLocalDB(); await db.catalogo_ingredientes.update(c.id, { nome: editandoCat.nome, unidade: editandoCat.unidade, custo_por_unidade: parseFloat(editandoCat.custo) || 0 }); setEditandoCat(null); void load(); }} className="bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-1 rounded-lg">Salvar</button>
                                 <button onClick={() => setEditandoCat(null)} className="text-slate-400 hover:text-slate-600 text-xs px-2 py-1">Cancelar</button>
                               </div>
                             </td>
@@ -658,7 +670,7 @@ export default function PrecificacaoPage() {
                             <td className="px-5 py-3 text-right">
                               <div className="flex gap-2 justify-end">
                                 <button onClick={() => setEditandoCat({ id: c.id, nome: c.nome, unidade: c.unidade, custo: String(c.custo_por_unidade) })} className="text-slate-400 hover:text-blue-600 text-sm transition-colors" title="Editar">✏️</button>
-                                <button onClick={async () => { if (!confirm(`Remover "${c.nome}" do catálogo?`)) return; await fetch(`/api/catalogo-ingredientes/${c.id}`, { method: "DELETE" }); void load(); }} className="text-slate-300 hover:text-red-500 text-sm transition-colors" title="Excluir">✕</button>
+                                <button onClick={async () => { if (!confirm(`Remover "${c.nome}" do catálogo?`)) return; const db = getLocalDB(); await db.catalogo_ingredientes.delete(c.id); void load(); }} className="text-slate-300 hover:text-red-500 text-sm transition-colors" title="Excluir">✕</button>
                               </div>
                             </td>
                           </>
@@ -773,19 +785,19 @@ export default function PrecificacaoPage() {
                     <span className="flex-1 font-medium text-slate-700 text-sm">{g.nome}</span>
                     {editandoGasto?.id === g.id ? (
                       <input type="number" step="0.01" value={editandoGasto.valor} onChange={(e) => setEditandoGasto({ ...editandoGasto, valor: e.target.value })}
-                        onBlur={async () => { await fetch(`/api/gastos-variaveis/${g.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valor: parseFloat(editandoGasto.valor) || 0 }) }); setEditandoGasto(null); void load(); }}
+                        onBlur={async () => { const db = getLocalDB(); await db.gastos_variaveis.update(g.id, { valor: parseFloat(editandoGasto.valor) || 0 }); setEditandoGasto(null); void load(); }}
                         className="w-32 border border-blue-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" autoFocus />
                     ) : (
                       <button onClick={() => setEditandoGasto({ id: g.id, valor: String(g.valor) })} className="text-sm font-semibold text-slate-600 hover:text-blue-600 w-32 text-right">{fmt(g.valor)}/mês</button>
                     )}
-                    <button onClick={async () => { await fetch(`/api/gastos-variaveis/${g.id}`, { method: "DELETE" }); void load(); }} className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
+                    <button onClick={async () => { const db = getLocalDB(); await db.gastos_variaveis.delete(g.id); void load(); }} className="text-slate-300 hover:text-red-500 transition-colors">✕</button>
                   </div>
                 ))}
               </div>
               <div className="flex gap-2 mb-4">
                 <input value={novoGasto.nome} onChange={(e) => setNovoGasto({ ...novoGasto, nome: e.target.value })} placeholder="Ex: Energia elétrica" className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
                 <input type="number" step="0.01" value={novoGasto.valor} onChange={(e) => setNovoGasto({ ...novoGasto, valor: e.target.value })} placeholder="R$/mês" className="w-32 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                <button onClick={async () => { if (!novoGasto.nome.trim() || !novoGasto.valor) return; await fetch("/api/gastos-variaveis", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ empresa_id: Number(id), nome: novoGasto.nome.trim(), valor: parseFloat(novoGasto.valor) }) }); setNovoGasto({ nome: "", valor: "" }); void load(); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors">+ Adicionar</button>
+                <button onClick={async () => { if (!novoGasto.nome.trim() || !novoGasto.valor) return; const db = getLocalDB(); await db.gastos_variaveis.add({ empresa_id: Number(id), nome: novoGasto.nome.trim(), valor: parseFloat(novoGasto.valor) }); setNovoGasto({ nome: "", valor: "" }); void load(); }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl text-sm transition-colors">+ Adicionar</button>
               </div>
               {gastosItens.length > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 space-y-1">

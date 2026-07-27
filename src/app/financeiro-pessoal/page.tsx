@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { getLocalDB } from "@/lib/localdb";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -114,7 +114,6 @@ function MiniBar({ entries }: { entries: { label: string; receita: number; despe
 // ─── Componente Principal ─────────────────────────────────────────────────────
 
 export default function FinanceiroPessoalPage() {
-  const router = useRouter();
   const now = new Date();
 
   const [aba, setAba] = useState<Tab>("dashboard");
@@ -154,18 +153,18 @@ export default function FinanceiroPessoalPage() {
   // ── Carregar dados ─────────────────────────────────────────────────────────
 
   const load = useCallback(async (ano: number) => {
-    const [lRes, cRes, clRes, mRes] = await Promise.all([
-      fetch(`/api/pf/lancamentos?ano=${ano}`),
-      fetch("/api/pf/cartoes"),
-      fetch("/api/pf/cartao-lancamentos"),
-      fetch("/api/pf/metas"),
+    const db = getLocalDB();
+    const [lancs, carts, cartLancs, metasList] = await Promise.all([
+      db.pf_lancamentos.filter((l) => l.data.startsWith(String(ano))).toArray(),
+      db.pf_cartoes.toArray(),
+      db.pf_cartao_lancamentos.toArray(),
+      db.pf_metas.toArray(),
     ]);
-    if (lRes.status === 401) { router.push("/login"); return; }
-    if (lRes.ok) setLancamentos(await lRes.json() as Lancamento[]);
-    if (cRes.ok) setCartoes(await cRes.json() as Cartao[]);
-    if (clRes.ok) setCartaoLancs(await clRes.json() as CartaoLancamento[]);
-    if (mRes.ok) setMetas(await mRes.json() as Meta[]);
-  }, [router]);
+    setLancamentos(lancs as unknown as Lancamento[]);
+    setCartoes(carts as unknown as Cartao[]);
+    setCartaoLancs(cartLancs as unknown as CartaoLancamento[]);
+    setMetas(metasList as unknown as Meta[]);
+  }, []);
 
   useEffect(() => { void load(filtroAno); }, [load, filtroAno]);
 
@@ -204,16 +203,13 @@ export default function FinanceiroPessoalPage() {
     const v = parseFloat(formLanc.valor);
     if (!formLanc.descricao.trim() || isNaN(v) || v <= 0 || !formLanc.data) return;
     setSalvandoLanc(true);
-    const body = { ...formLanc, valor: v, categoria: formLanc.categoria || formLanc.tipo };
+    const db = getLocalDB();
+    const dados = { ...formLanc, valor: v, categoria: formLanc.categoria || formLanc.tipo, criado_em: new Date().toISOString() };
 
     if (editandoLancId !== null) {
-      await fetch(`/api/pf/lancamentos/${editandoLancId}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.pf_lancamentos.update(editandoLancId, dados);
     } else {
-      await fetch("/api/pf/lancamentos", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.pf_lancamentos.add(dados as import("@/lib/localdb").LancamentoPF);
     }
 
     setFormLanc(emptyLanc);
@@ -222,9 +218,10 @@ export default function FinanceiroPessoalPage() {
     void load(filtroAno);
   }
 
-  async function deletarLanc(id: number) {
+  async function deletarLanc(lancId: number) {
     if (!confirm("Excluir este lançamento?")) return;
-    await fetch(`/api/pf/lancamentos/${id}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.pf_lancamentos.delete(lancId);
     void load(filtroAno);
   }
 
@@ -240,19 +237,25 @@ export default function FinanceiroPessoalPage() {
   async function salvarCartao() {
     if (!formCartao.nome.trim()) return;
     setSalvandoCartao(true);
-    await fetch("/api/pf/cartoes", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...formCartao, limite: parseFloat(formCartao.limite) || 0, dia_fechamento: Number(formCartao.dia_fechamento), dia_vencimento: Number(formCartao.dia_vencimento) }),
+    const db = getLocalDB();
+    await db.pf_cartoes.add({
+      nome: formCartao.nome, bandeira: formCartao.bandeira,
+      limite: parseFloat(formCartao.limite) || 0,
+      dia_fechamento: Number(formCartao.dia_fechamento),
+      dia_vencimento: Number(formCartao.dia_vencimento),
+      cor: formCartao.cor, criado_em: new Date().toISOString(),
     });
     setFormCartao(emptyCartao);
     setSalvandoCartao(false);
     void load(filtroAno);
   }
 
-  async function deletarCartao(id: number) {
+  async function deletarCartao(cartaoId: number) {
     if (!confirm("Excluir este cartão e todos os lançamentos?")) return;
-    await fetch(`/api/pf/cartoes/${id}`, { method: "DELETE" });
-    if (cartaoSelecionado === id) setCartaoSelecionado(null);
+    const db = getLocalDB();
+    await db.pf_cartao_lancamentos.where("cartao_id").equals(cartaoId).delete();
+    await db.pf_cartoes.delete(cartaoId);
+    if (cartaoSelecionado === cartaoId) setCartaoSelecionado(null);
     void load(filtroAno);
   }
 
@@ -261,18 +264,22 @@ export default function FinanceiroPessoalPage() {
     const v = parseFloat(formCartaoLanc.valor_total);
     if (!formCartaoLanc.descricao.trim() || isNaN(v) || v <= 0) return;
     setSalvandoCartaoLanc(true);
-    await fetch("/api/pf/cartao-lancamentos", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cartao_id: cartaoSelecionado, ...formCartaoLanc, valor_total: v, parcelas: Number(formCartaoLanc.parcelas) || 1, categoria: formCartaoLanc.categoria || "outros" }),
+    const db = getLocalDB();
+    await db.pf_cartao_lancamentos.add({
+      cartao_id: cartaoSelecionado, data: formCartaoLanc.data,
+      descricao: formCartaoLanc.descricao, categoria: formCartaoLanc.categoria || "outros",
+      valor_total: v, parcelas: Number(formCartaoLanc.parcelas) || 1,
+      criado_em: new Date().toISOString(),
     });
     setFormCartaoLanc(emptyCartaoLanc);
     setSalvandoCartaoLanc(false);
     void load(filtroAno);
   }
 
-  async function deletarCartaoLanc(id: number) {
+  async function deletarCartaoLanc(lancId: number) {
     if (!confirm("Excluir este lançamento?")) return;
-    await fetch(`/api/pf/cartao-lancamentos/${id}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.pf_cartao_lancamentos.delete(lancId);
     void load(filtroAno);
   }
 
@@ -282,16 +289,13 @@ export default function FinanceiroPessoalPage() {
     const obj = parseFloat(formMeta.valor_objetivo);
     if (!formMeta.nome.trim() || isNaN(obj) || obj <= 0) return;
     setSalvandoMeta(true);
-    const body = { ...formMeta, valor_objetivo: obj, valor_atual: parseFloat(formMeta.valor_atual) || 0, prazo: formMeta.prazo || undefined };
+    const db = getLocalDB();
+    const dados = { nome: formMeta.nome, emoji: formMeta.emoji, valor_objetivo: obj, valor_atual: parseFloat(formMeta.valor_atual) || 0, prazo: formMeta.prazo || undefined, cor: formMeta.cor };
 
     if (editandoMetaId !== null) {
-      await fetch(`/api/pf/metas/${editandoMetaId}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.pf_metas.update(editandoMetaId, dados);
     } else {
-      await fetch("/api/pf/metas", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.pf_metas.add({ ...dados, criado_em: new Date().toISOString() });
     }
 
     setFormMeta(emptyMeta);
@@ -306,17 +310,16 @@ export default function FinanceiroPessoalPage() {
     if (isNaN(v) || v <= 0) return;
     const meta = metas.find((m) => m.id === aporteMeta.id);
     if (!meta) return;
-    await fetch(`/api/pf/metas/${aporteMeta.id}`, {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ valor_atual: meta.valor_atual + v }),
-    });
+    const db = getLocalDB();
+    await db.pf_metas.update(aporteMeta.id, { valor_atual: meta.valor_atual + v });
     setAporteMeta(null);
     void load(filtroAno);
   }
 
-  async function deletarMeta(id: number) {
+  async function deletarMeta(metaId: number) {
     if (!confirm("Excluir esta meta?")) return;
-    await fetch(`/api/pf/metas/${id}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.pf_metas.delete(metaId);
     void load(filtroAno);
   }
 

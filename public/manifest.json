@@ -1,6 +1,6 @@
 {
-  "name": "Precificação Pro",
-  "short_name": "Precif. Pro",
+  "name": "Top Precificação",
+  "short_name": "Top Precif.",
   "description": "Precificação e gestão financeira para pequenos negócios",
   "start_url": "/dashboard",
   "scope": "/",

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { getLocalDB } from "@/lib/localdb";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -238,20 +239,25 @@ export default function FinanceiroPage() {
   const carregouAno = useRef<number | null>(null);
 
   const load = useCallback(async (ano: number) => {
-    const [eRes, lRes, sRes] = await Promise.all([
-      fetch("/api/empresas"),
-      fetch(`/api/lancamentos?empresaId=${id}&ano=${ano}`),
-      fetch(`/api/socios/${id}`),
-    ]);
-    if (eRes.status === 401) { router.push("/login"); return; }
-
-    const empresas = await eRes.json() as Empresa[];
-    const e = empresas.find((x) => x.id === Number(id));
+    const db = getLocalDB();
+    const e = await db.empresas.get(Number(id));
     if (!e) { router.push("/dashboard"); return; }
-    setEmpresa(e);
+    setEmpresa(e as Empresa);
 
-    if (lRes.ok) setLancamentos(await lRes.json() as Lancamento[]);
-    if (sRes.ok) setSocios((await sRes.json() as { dados: Socio[] }).dados);
+    const all = await db.lancamentos.where("empresa_id").equals(Number(id)).toArray();
+    setLancamentos(
+      all
+        .filter((l) => l.data.startsWith(String(ano)))
+        .map((l) => ({
+          ...l,
+          id: l.id!,
+          itens: JSON.parse(l.itens || "[]") as LancItem[],
+          itens_vendas: JSON.parse(l.itens_vendas || "[]") as LancItem[],
+        }))
+    );
+
+    const socioRaw = await db.socios.where("empresa_id").equals(Number(id)).first();
+    if (socioRaw) setSocios(JSON.parse(socioRaw.dados || "[]") as Socio[]);
     carregouAno.current = ano;
   }, [id, router]);
 
@@ -354,16 +360,18 @@ export default function FinanceiroPage() {
     const v = formVendasTotal;
     if (isNaN(v) || v < 0 || !form.data) return;
     setSalvando(true);
-    const body = { empresa_id: Number(id), data: form.data, vendas: v, itens: form.itens, itens_vendas: form.itens_vendas, obs: form.obs };
+    const db = getLocalDB();
+    const dados = {
+      empresa_id: Number(id), data: form.data, vendas: v,
+      itens: JSON.stringify(form.itens),
+      itens_vendas: JSON.stringify(form.itens_vendas),
+      obs: form.obs, criado_em: new Date().toISOString(),
+    };
 
     if (editandoId !== null) {
-      await fetch(`/api/lancamentos/${editandoId}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.lancamentos.update(editandoId, dados);
     } else {
-      await fetch("/api/lancamentos", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      await db.lancamentos.add(dados);
     }
 
     setForm(emptyForm);
@@ -374,7 +382,8 @@ export default function FinanceiroPage() {
 
   async function deletar(lancId: number) {
     if (!confirm("Excluir este lançamento?")) return;
-    await fetch(`/api/lancamentos/${lancId}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.lancamentos.delete(lancId);
     void load(filtroAno);
   }
 
@@ -387,9 +396,13 @@ export default function FinanceiroPage() {
 
   async function salvarSocios() {
     setSalvandoSocios(true);
-    await fetch(`/api/socios/${id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dados: socios }),
-    });
+    const db = getLocalDB();
+    const existing = await db.socios.where("empresa_id").equals(Number(id)).first();
+    if (existing?.id) {
+      await db.socios.update(existing.id, { dados: JSON.stringify(socios) });
+    } else {
+      await db.socios.add({ empresa_id: Number(id), dados: JSON.stringify(socios) });
+    }
     setSalvandoSocios(false);
   }
 

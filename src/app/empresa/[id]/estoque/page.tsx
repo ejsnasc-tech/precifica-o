@@ -3,13 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
+import { getLocalDB, type Empresa, type ItemEstoque } from "@/lib/localdb";
 
-interface Empresa { id: number; nome: string; descricao: string; cor: string; emoji: string; }
-interface ItemEstoque {
-  id: number; empresa_id: number; nome: string; unidade: string;
-  quantidade_atual: number; quantidade_minima: number; custo_unitario: number;
-  tem_validade: number; dias_alerta: number;
-}
 interface Movimento {
   id: number; estoque_id: number; tipo: string; quantidade: number;
   observacao: string | null; data_validade: string | null; criado_at: string;
@@ -56,53 +51,47 @@ export default function EstoquePage() {
   const [busca, setBusca] = useState("");
 
   const load = useCallback(async () => {
-    const [eRes, iRes] = await Promise.all([
-      fetch("/api/empresas"),
-      fetch(`/api/estoque?empresaId=${id}`),
-    ]);
-    if (eRes.status === 401) { router.push("/login"); return; }
-    const empresas = await eRes.json() as Empresa[];
-    const e = empresas.find((x) => x.id === Number(id));
+    const db = getLocalDB();
+    const e = await db.empresas.get(Number(id));
     if (!e) { router.push("/dashboard"); return; }
     setEmpresa(e);
-    setItens(await iRes.json() as ItemEstoque[]);
+    const lista = await db.estoque.where("empresa_id").equals(Number(id)).toArray();
+    setItens(lista as ItemEstoque[]);
     setLoading(false);
   }, [id, router]);
 
   useEffect(() => { void load(); }, [load]);
 
   async function loadHistorico(item: ItemEstoque) {
-    const res = await fetch(`/api/estoque-movimentos?estoqueId=${item.id}`);
-    setMovHistorico(await res.json() as Movimento[]);
+    const db = getLocalDB();
+    const movs = await db.estoque_movimentos.where("estoque_id").equals(item.id!).reverse().sortBy("criado_at");
+    setMovHistorico(movs as unknown as Movimento[]);
   }
 
   async function salvar() {
     if (!form.nome.trim()) return;
     setSalvando(true);
+    const db = getLocalDB();
     const qtdAtual = parseFloat(form.quantidade_atual) || 0;
-    const body = {
+    const dados = {
       empresa_id: Number(id), nome: form.nome.trim(), unidade: form.unidade,
       quantidade_atual: qtdAtual,
       quantidade_minima: parseFloat(form.quantidade_minima) || 0,
       custo_unitario: parseFloat(form.custo_unitario) || 0,
       tem_validade: form.tem_validade ? 1 : 0,
       dias_alerta: parseInt(form.dias_alerta) || 7,
+      criado_at: new Date().toISOString(),
     };
-    if (editando) {
-      await fetch(`/api/estoque/${editando.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (editando?.id) {
+      await db.estoque.update(editando.id, dados);
     } else {
-      const res = await fetch("/api/estoque", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const created = await res.json() as { id: number };
-      // se tem validade ativa e quantidade inicial > 0, registra o movimento de entrada com a data
+      const novoId = await db.estoque.add(dados as ItemEstoque);
       if (form.tem_validade && qtdAtual > 0) {
-        await fetch("/api/estoque-movimentos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            estoque_id: created.id, tipo: "entrada", quantidade: qtdAtual,
-            observacao: "Estoque inicial",
-            data_validade: form.data_validade_inicial || null,
-          }),
+        await db.estoque_movimentos.add({
+          estoque_id: Number(novoId), tipo: "entrada", quantidade: qtdAtual,
+          observacao: "Estoque inicial",
+          data_validade: form.data_validade_inicial || undefined,
+          criado_at: new Date().toISOString(),
         });
       }
     }
@@ -112,48 +101,54 @@ export default function EstoquePage() {
 
   async function deletar(item: ItemEstoque) {
     if (!confirm(`Excluir "${item.nome}" do estoque?`)) return;
-    await fetch(`/api/estoque/${item.id}`, { method: "DELETE" });
+    const db = getLocalDB();
+    await db.estoque_movimentos.where("estoque_id").equals(item.id!).delete();
+    await db.estoque.delete(item.id!);
     if (movItem?.id === item.id) setMovItem(null);
     if (retiradaItem?.id === item.id) setRetiradaItem(null);
     void load();
   }
 
+  function calcNovaQtd(atual: number, tipo: TipoMov, qtd: number): number {
+    if (tipo === "entrada") return atual + qtd;
+    if (tipo === "ajuste") return qtd;
+    return Math.max(0, atual - qtd);
+  }
+
   async function registrarMovimento() {
     if (!movItem || !movQtd) return;
     setSalvandoMov(true);
-    const res = await fetch("/api/estoque-movimentos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        estoque_id: movItem.id, tipo: movTipo,
-        quantidade: parseFloat(movQtd),
-        observacao: movObs || null,
-        data_validade: (movTipo === "entrada" && movItem.tem_validade && movValidade) ? movValidade : null,
-      }),
+    const db = getLocalDB();
+    const qtd = parseFloat(movQtd);
+    const novaQtd = calcNovaQtd(movItem.quantidade_atual, movTipo, qtd);
+    await db.estoque_movimentos.add({
+      estoque_id: movItem.id!, tipo: movTipo, quantidade: qtd,
+      observacao: movObs || "",
+      data_validade: (movTipo === "entrada" && movItem.tem_validade && movValidade) ? movValidade : undefined,
+      criado_at: new Date().toISOString(),
     });
-    const updatedItem = await res.json() as ItemEstoque;
-    setItens((prev) => prev.map((i) => i.id === updatedItem.id ? { ...i, ...updatedItem } : i));
-    setMovItem({ ...movItem, quantidade_atual: updatedItem.quantidade_atual });
+    await db.estoque.update(movItem.id!, { quantidade_atual: novaQtd });
+    const updatedItem = { ...movItem, quantidade_atual: novaQtd };
+    setItens((prev) => prev.map((i) => i.id === movItem.id ? updatedItem : i));
+    setMovItem(updatedItem);
     setMovQtd(""); setMovObs(""); setMovValidade("");
     setSalvandoMov(false);
-    void loadHistorico({ ...movItem, quantidade_atual: updatedItem.quantidade_atual });
+    void loadHistorico(updatedItem);
   }
 
   async function registrarRetirada() {
     if (!retiradaItem || !retiradaQtd) return;
     setSalvandoRetirada(true);
-    const res = await fetch("/api/estoque-movimentos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        estoque_id: retiradaItem.id, tipo: "saida",
-        quantidade: parseFloat(retiradaQtd),
-        observacao: retiradaObs || null,
-        data_validade: null,
-      }),
+    const db = getLocalDB();
+    const qtd = parseFloat(retiradaQtd);
+    const novaQtd = Math.max(0, retiradaItem.quantidade_atual - qtd);
+    await db.estoque_movimentos.add({
+      estoque_id: retiradaItem.id!, tipo: "saida", quantidade: qtd,
+      observacao: retiradaObs || "",
+      criado_at: new Date().toISOString(),
     });
-    const updatedItem = await res.json() as ItemEstoque;
-    setItens((prev) => prev.map((i) => i.id === updatedItem.id ? { ...i, ...updatedItem } : i));
+    await db.estoque.update(retiradaItem.id!, { quantidade_atual: novaQtd });
+    setItens((prev) => prev.map((i) => i.id === retiradaItem.id ? { ...i, quantidade_atual: novaQtd } : i));
     setRetiradaQtd(""); setRetiradaObs(""); setRetiradaItem(null);
     setSalvandoRetirada(false);
   }
@@ -180,8 +175,8 @@ export default function EstoquePage() {
     const itensComValidade = itens.filter((i) => i.tem_validade === 1);
     if (itensComValidade.length === 0) { setAlertasValidade([]); return; }
     Promise.all(itensComValidade.map(async (item) => {
-      const res = await fetch(`/api/estoque-movimentos?estoqueId=${item.id}`);
-      const movs = await res.json() as Movimento[];
+      const db = getLocalDB();
+      const movs = (await db.estoque_movimentos.where("estoque_id").equals(item.id!).toArray()) as unknown as Movimento[];
       return movs
         .filter((m) => m.tipo === "entrada" && m.data_validade)
         .filter((m) => {
