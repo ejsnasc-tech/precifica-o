@@ -41,7 +41,7 @@ export default function AtivarPage() {
           <div className="text-5xl mb-4">🔑</div>
           <h1 className="text-2xl font-black text-gray-900">Ativar acesso</h1>
           <p className="text-gray-500 mt-2 text-sm">
-            Digite o código que você recebeu por email após a compra.
+            Digite o código de acesso fornecido pelo seu consultor.
           </p>
         </div>
 
@@ -72,9 +72,9 @@ export default function AtivarPage() {
         </form>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Ainda não tem acesso?{" "}
+          Não tem um código?{" "}
           <Link href="/" className="text-indigo-600 font-semibold hover:underline">
-            Comprar agora
+            Saiba mais
           </Link>
         </p>
       </div>
