@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Rotas que não precisam de licença
 const PUBLIC = [
   "/",
   "/ativar",
@@ -11,20 +10,44 @@ const PUBLIC = [
   "/api/admin",
 ];
 
+async function isValidLicense(cookieValue: string, secret: string): Promise<boolean> {
+  const dot = cookieValue.lastIndexOf(".");
+  if (dot === -1) return false;
+  const code = cookieValue.slice(0, dot);
+  const mac = cookieValue.slice(dot + 1);
+  if (!code || mac.length !== 64) return false; // SHA-256 = 64 hex chars
+
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(code));
+  const expected = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  // Comparação em tempo constante
+  if (expected.length !== mac.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ mac.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
 
   if (isPublic) return NextResponse.next();
 
-  // Rotas de API internas e assets do Next.js passam direto
   if (pathname.startsWith("/_next") || pathname.startsWith("/api/") || pathname.includes(".")) {
     return NextResponse.next();
   }
 
-  // Verificação de licença via cookie (setado pelo /ativar após validar o código)
-  const licenca = req.cookies.get("pp_licenca")?.value;
-  if (!licenca || licenca !== "ok") {
+  const cookieValue = req.cookies.get("pp_licenca")?.value ?? "";
+  const secret = process.env.COOKIE_SECRET ?? "dev-insecure-secret";
+
+  const valid = await isValidLicense(cookieValue, secret);
+  if (!valid) {
     return NextResponse.redirect(new URL("/ativar", req.url));
   }
 

@@ -1,0 +1,1 @@
+ALTER TABLE codigos_acesso ADD COLUMN revogado INTEGER NOT NULL DEFAULT 0;
