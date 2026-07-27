@@ -21,6 +21,7 @@ interface Cartao {
   nome: string;
   bandeira: string;
   limite: number;
+  limite_alerta?: number;
   dia_fechamento: number;
   dia_vencimento: number;
   cor: string;
@@ -133,7 +134,7 @@ export default function FinanceiroPessoalPage() {
   const [salvandoLanc, setSalvandoLanc] = useState(false);
 
   // Form cartão
-  const emptyCartao = { nome: "", bandeira: "visa", limite: "", dia_fechamento: "20", dia_vencimento: "10", cor: "#6366f1" };
+  const emptyCartao = { nome: "", bandeira: "visa", limite: "", limite_alerta: "", dia_fechamento: "20", dia_vencimento: "10", cor: "#6366f1" };
   const [formCartao, setFormCartao] = useState(emptyCartao);
   const [cartaoSelecionado, setCartaoSelecionado] = useState<number | null>(null);
   const [salvandoCartao, setSalvandoCartao] = useState(false);
@@ -241,6 +242,7 @@ export default function FinanceiroPessoalPage() {
     await db.pf_cartoes.add({
       nome: formCartao.nome, bandeira: formCartao.bandeira,
       limite: parseFloat(formCartao.limite) || 0,
+      limite_alerta: formCartao.limite_alerta ? parseFloat(formCartao.limite_alerta) : undefined,
       dia_fechamento: Number(formCartao.dia_fechamento),
       dia_vencimento: Number(formCartao.dia_vencimento),
       cor: formCartao.cor, criado_em: new Date().toISOString(),
@@ -586,11 +588,22 @@ export default function FinanceiroPessoalPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600 block mb-1">Limite (R$)</label>
+                  <label className="text-sm text-slate-600 block mb-1">Limite de crédito (R$)</label>
                   <input type="number" step="0.01" min="0" value={formCartao.limite}
                     onChange={(e) => setFormCartao({ ...formCartao, limite: e.target.value })}
                     placeholder="0,00"
                     className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400" />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600 block mb-1">
+                    🔔 Alerta de gastos (R$)
+                    <span className="text-slate-400 font-normal text-xs ml-1">opcional</span>
+                  </label>
+                  <input type="number" step="0.01" min="0" value={formCartao.limite_alerta}
+                    onChange={(e) => setFormCartao({ ...formCartao, limite_alerta: e.target.value })}
+                    placeholder="Ex: 3000,00"
+                    className="w-full border border-amber-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <p className="text-xs text-slate-400 mt-0.5">Avisa quando a fatura do mês atingir esse valor</p>
                 </div>
                 <div>
                   <label className="text-sm text-slate-600 block mb-1">Dia fechamento</label>
@@ -629,8 +642,19 @@ export default function FinanceiroPessoalPage() {
                   const fatura = faturaDoMes(c.id);
                   const usoPct = c.limite > 0 ? Math.min((fatura / c.limite) * 100, 100) : 0;
                   const isSelected = cartaoSelecionado === c.id;
+
+                  const alertaPct = c.limite_alerta && c.limite_alerta > 0 ? (fatura / c.limite_alerta) * 100 : null;
+                  const alertaCor = alertaPct === null ? null
+                    : alertaPct >= 100 ? "#ef4444"
+                    : alertaPct >= 80 ? "#f59e0b"
+                    : "#10b981";
+                  const alertaLabel = alertaPct === null ? null
+                    : alertaPct >= 100 ? "🔴 Limite de alerta atingido!"
+                    : alertaPct >= 80 ? "🟡 Atenção: perto do limite de alerta"
+                    : null;
+
                   return (
-                    <div key={c.id} className={`bg-white rounded-2xl shadow overflow-hidden border-2 transition-colors ${isSelected ? "border-violet-400" : "border-transparent"}`}>
+                    <div key={c.id} className={`bg-white rounded-2xl shadow overflow-hidden border-2 transition-colors ${alertaPct !== null && alertaPct >= 100 ? "border-red-300" : alertaPct !== null && alertaPct >= 80 ? "border-amber-300" : isSelected ? "border-violet-400" : "border-transparent"}`}>
                       {/* Card visual */}
                       <div className="p-5 text-white rounded-t-2xl" style={{ background: `linear-gradient(135deg, ${c.cor}, ${c.cor}99)` }}>
                         <div className="flex items-start justify-between">
@@ -647,10 +671,38 @@ export default function FinanceiroPessoalPage() {
                       </div>
                       {/* Fatura info */}
                       <div className="p-4">
+                        {/* Banner de alerta */}
+                        {alertaLabel && (
+                          <div className={`mb-3 px-3 py-2 rounded-xl text-xs font-semibold ${alertaPct! >= 100 ? "bg-red-50 text-red-700 border border-red-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+                            {alertaLabel}
+                            {alertaPct! >= 100 && c.limite_alerta && (
+                              <span className="font-normal"> · {fmt(fatura - c.limite_alerta)} acima do alerta</span>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs text-slate-500">Fatura {MESES[filtroMes - 1]}</span>
                           <span className="font-bold text-slate-800">{fmt(fatura)}</span>
                         </div>
+                        {/* Barra de alerta de gastos */}
+                        {c.limite_alerta && c.limite_alerta > 0 && (
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-slate-500">🔔 Alerta de gastos</span>
+                              <span className="font-semibold" style={{ color: alertaCor! }}>
+                                {fmt(fatura)} / {fmt(c.limite_alerta)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                              <div className="h-2.5 rounded-full transition-all" style={{ width: `${Math.min((alertaPct ?? 0), 100)}%`, background: alertaCor! }} />
+                            </div>
+                            <p className="text-xs mt-0.5" style={{ color: alertaCor! }}>
+                              {(alertaPct ?? 0).toFixed(0)}% usado
+                              {c.limite_alerta > fatura && <span className="text-slate-400"> · Restam {fmt(c.limite_alerta - fatura)}</span>}
+                            </p>
+                          </div>
+                        )}
+                        {/* Barra de limite de crédito */}
                         {c.limite > 0 && (
                           <>
                             <ProgressBar value={fatura} max={c.limite} cor={c.cor} />

@@ -123,6 +123,7 @@ export interface CartaoPF {
   nome: string;
   bandeira: string;
   limite: number;
+  limite_alerta?: number;
   dia_fechamento: number;
   dia_vencimento: number;
   cor: string;
