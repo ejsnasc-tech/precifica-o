@@ -22,5 +22,8 @@
       "binding": "SESSIONS",
       "id": "bebba38d0a7f489aa85e1c4a563dae20"
     }
-  ]
+  ],
+  "vars": {
+    "NEXT_PUBLIC_BASE_URL": "https://topprecificacao.com.br"
+  }
 }
