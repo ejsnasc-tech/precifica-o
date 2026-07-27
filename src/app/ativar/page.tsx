@@ -19,10 +19,12 @@ export default function AtivarPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo }),
       });
-      const data = await res.json() as { erro?: string };
+      const data = await res.json() as { erro?: string; expira_em?: string | null };
       if (!res.ok) {
         setErro(data.erro || "Código inválido.");
       } else {
+        // Salva expiração no dispositivo para funcionar offline também
+        localStorage.setItem("pp_licenca_expira", data.expira_em ?? "vitalicio");
         router.push("/dashboard");
       }
     } catch {

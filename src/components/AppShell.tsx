@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 
 const NAV = [
@@ -92,6 +92,18 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+
+  // Verificação de expiração — funciona online E offline
+  useEffect(() => {
+    const expira = localStorage.getItem("pp_licenca_expira");
+    if (!expira) return; // sem registro local, o servidor decide
+    if (expira === "vitalicio") return; // acesso permanente
+    if (new Date(expira) < new Date()) {
+      localStorage.removeItem("pp_licenca_expira");
+      router.replace("/ativar");
+    }
+  }, [router]);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
