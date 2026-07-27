@@ -9,16 +9,21 @@ function gerarCodigo(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { secret } = await req.json() as { secret?: string };
-    const adminSecret = process.env.ADMIN_SECRET;
+    const { secret, nome_cliente, email_cliente, expira_em } =
+      await req.json() as { secret?: string; nome_cliente?: string; email_cliente?: string; expira_em?: string };
 
-    if (!adminSecret || secret !== adminSecret) {
+    const adminSecret = process.env.ADMIN_SECRET;
+    // trim() evita problema de newline no segredo armazenado
+    if (!adminSecret || secret?.trim() !== adminSecret.trim()) {
       return NextResponse.json({ erro: "Senha incorreta." }, { status: 401 });
     }
 
     const db = await getDB();
     const codigo = gerarCodigo();
-    await db.prepare("INSERT INTO codigos_acesso (codigo) VALUES (?)").bind(codigo).run();
+    await db
+      .prepare("INSERT INTO codigos_acesso (codigo, nome_cliente, email_cliente, expira_em) VALUES (?, ?, ?, ?)")
+      .bind(codigo, nome_cliente?.trim() || null, email_cliente?.trim() || null, expira_em || null)
+      .run();
 
     return NextResponse.json({ codigo });
   } catch (e) {
